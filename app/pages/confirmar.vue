@@ -8,5 +8,5 @@ watch(user, () => {
 </script>
 
 <template>
-  <p class="text-sm text-slate-600">Entrando…</p>
+  <p class="text-sm text-neutral-600">Entrando…</p>
 </template>

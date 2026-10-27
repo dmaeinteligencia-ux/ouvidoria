@@ -21,8 +21,8 @@ async function entrar() {
 </script>
 
 <template>
-  <form class="w-full max-w-sm space-y-4 rounded-lg bg-white p-6 shadow" @submit.prevent="entrar">
-    <h1 class="text-lg font-semibold text-dmae-900">Ouvidoria DMAE</h1>
+  <form class="w-full max-w-sm space-y-4 rounded-panel bg-white p-6 shadow" @submit.prevent="entrar">
+    <h1 class="font-display text-h1 font-bold text-primary">Ouvidoria DMAE</h1>
     <label class="block text-sm">
       E-mail institucional
       <input v-model="email" type="email" required autocomplete="username" class="campo mt-1">
@@ -31,7 +31,7 @@ async function entrar() {
       Senha
       <input v-model="senha" type="password" required autocomplete="current-password" class="campo mt-1">
     </label>
-    <p v-if="erro" class="text-sm text-red-600">{{ erro }}</p>
+    <p v-if="erro" class="text-sm text-danger">{{ erro }}</p>
     <button type="submit" class="botao w-full" :disabled="enviando">Entrar</button>
   </form>
 </template>

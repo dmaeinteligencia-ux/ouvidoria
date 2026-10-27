@@ -6,6 +6,14 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'pt-BR' },
       title: 'Ouvidoria DMAE',
+      link: [
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap',
+        },
+      ],
     },
   },
   supabase: {

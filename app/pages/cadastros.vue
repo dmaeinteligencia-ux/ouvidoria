@@ -44,22 +44,22 @@ function texto(linha: Record<string, unknown>): string {
 
 <template>
   <div>
-    <h1 class="mb-4 text-xl font-semibold">Cadastros</h1>
+    <h1 class="mb-4 font-display text-h1 font-bold">Cadastros</h1>
     <div class="mb-4 flex flex-wrap gap-2">
       <button
         v-for="a in abas"
         :key="a.id"
         class="rounded-full px-3 py-1 text-sm"
-        :class="aba === a.id ? 'bg-dmae-600 text-white' : 'bg-white text-slate-700 shadow-sm'"
+        :class="aba === a.id ? 'bg-primary-700 text-white' : 'bg-white text-neutral-700 shadow-sm'"
         @click="aba = a.id"
       >
         {{ a.nome }}
       </button>
     </div>
-    <p v-if="pending" class="text-sm text-slate-500">Carregando…</p>
-    <ul v-else class="divide-y divide-slate-100 rounded-lg bg-white shadow-sm">
+    <p v-if="pending" class="text-sm text-neutral-500">Carregando…</p>
+    <ul v-else class="divide-y divide-neutral-100 rounded-panel bg-white shadow-sm">
       <li v-for="(linha, i) in linhas" :key="i" class="px-4 py-2 text-sm">{{ texto(linha) }}</li>
-      <li v-if="!linhas?.length" class="px-4 py-2 text-sm text-slate-500">Nenhum registro.</li>
+      <li v-if="!linhas?.length" class="px-4 py-2 text-sm text-neutral-500">Nenhum registro.</li>
     </ul>
   </div>
 </template>

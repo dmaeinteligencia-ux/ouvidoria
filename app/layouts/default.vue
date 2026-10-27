@@ -15,15 +15,15 @@ async function sair() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900">
-    <header class="border-b border-slate-200 bg-white">
+  <div class="min-h-screen bg-neutral-50 text-neutral-900">
+    <header class="bg-primary text-white">
       <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <NuxtLink to="/" class="font-semibold text-dmae-900">Ouvidoria DMAE</NuxtLink>
+        <NuxtLink to="/" class="font-display text-h2 font-bold">Ouvidoria DMAE</NuxtLink>
         <nav v-if="perfil" class="flex items-center gap-4 text-sm">
-          <NuxtLink to="/" class="hover:text-dmae-600">Início</NuxtLink>
-          <NuxtLink to="/cadastros" class="hover:text-dmae-600">Cadastros</NuxtLink>
-          <span class="text-slate-500">{{ perfil.nome }} · {{ nomesPerfil[perfil.perfil] }}</span>
-          <button class="text-slate-600 hover:text-dmae-600" @click="sair">Sair</button>
+          <NuxtLink to="/" class="hover:text-primary-100">Início</NuxtLink>
+          <NuxtLink to="/cadastros" class="hover:text-primary-100">Cadastros</NuxtLink>
+          <span class="text-primary-100">{{ perfil.nome }} · {{ nomesPerfil[perfil.perfil] }}</span>
+          <button class="text-white hover:text-primary-100" @click="sair">Sair</button>
         </nav>
       </div>
     </header>
