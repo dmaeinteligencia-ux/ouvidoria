@@ -23,3 +23,11 @@ begin
   assert public.dias_uteis_entre('2026-10-30', '2026-11-03') = 1, 'fim de semana e feriado não contam';
 end;
 $$;
+
+do $$
+begin
+  assert public.dias_uteis_restantes(public.hoje()) = 0, 'prazo hoje = 0 dias restantes';
+  assert public.dias_uteis_restantes(public.somar_dias_uteis(public.hoje(), 2)) = 2, 'prazo em 2 dias úteis';
+  assert public.dias_uteis_restantes(public.hoje() - 30) < 0, 'prazo passado é negativo';
+end;
+$$;

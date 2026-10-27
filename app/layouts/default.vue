@@ -1,12 +1,7 @@
 <script setup lang="ts">
 const supabase = useSupabaseClient()
 const { data: perfil } = await usePerfil()
-
-const nomesPerfil: Record<string, string> = {
-  administrador: 'Administrador',
-  ouvidoria: 'Ouvidoria',
-  diretor: 'Diretor',
-}
+const { data: resumo } = await useResumoPainel()
 
 async function sair() {
   await supabase.auth.signOut()
@@ -15,20 +10,13 @@ async function sair() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-50 text-neutral-900">
-    <header class="bg-primary text-white">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <NuxtLink to="/" class="font-display text-h2 font-bold">Ouvidoria DMAE</NuxtLink>
-        <nav v-if="perfil" class="flex items-center gap-4 text-sm">
-          <NuxtLink to="/" class="hover:text-primary-100">Início</NuxtLink>
-          <NuxtLink to="/cadastros" class="hover:text-primary-100">Cadastros</NuxtLink>
-          <span class="text-primary-100">{{ perfil.nome }} · {{ nomesPerfil[perfil.perfil] }}</span>
-          <button class="text-white hover:text-primary-100" @click="sair">Sair</button>
-        </nav>
-      </div>
-    </header>
-    <main class="mx-auto max-w-6xl px-4 py-6">
-      <slot />
-    </main>
+  <div class="grid min-h-screen grid-rows-[56px_1fr] bg-neutral-50 text-[14px] leading-[1.45]">
+    <AppTopbar :perfil="perfil ?? null" @sair="sair" />
+    <div class="flex min-w-0">
+      <AppSidebar :perfil="perfil?.perfil ?? null" :contagens="resumo?.contagens" />
+      <main class="grid min-w-0 flex-1 content-start gap-[18px] px-4 pb-7 pt-[22px] sm:px-[26px]">
+        <slot />
+      </main>
+    </div>
   </div>
 </template>

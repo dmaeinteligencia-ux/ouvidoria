@@ -1,41 +1,89 @@
 <script setup lang="ts">
-const supabase = useSupabaseClient()
 const { data: perfil } = await usePerfil()
+const { data: resumo } = await useResumoPainel()
 
-const equipe = computed(() => perfil.value?.perfil === 'administrador' || perfil.value?.perfil === 'ouvidoria')
+const hoje = new Date()
+const dataExtenso = new Intl.DateTimeFormat('pt-BR', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo',
+}).format(hoje)
+const subtitulo = dataExtenso.charAt(0).toUpperCase() + dataExtenso.slice(1)
+const nomeMes = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(hoje)
 
-const { data: contagens } = await useAsyncData('contagens', async () => {
-  if (!equipe.value) return {}
-  const { data, error } = await supabase.from('manifestacoes').select('situacao')
-  if (error) throw error
-  const total: Record<string, number> = {}
-  for (const linha of data as { situacao: string }[]) {
-    total[linha.situacao] = (total[linha.situacao] ?? 0) + 1
-  }
-  return total
-}, { watch: [equipe] })
+const maiorCarga = computed(() => Math.max(1, ...(resumo.value?.cargaPorDiretoria ?? []).map(c => c.total)))
 </script>
 
 <template>
-  <div>
-    <div v-if="!perfil" class="rounded-control bg-warning-soft p-4 text-sm text-warning">
-      Seu login ainda não tem perfil no sistema. Peça ao administrador para cadastrá-lo.
-    </div>
-
-    <div v-else-if="perfil.perfil === 'diretor'" class="rounded-control bg-primary-50 p-4 text-sm text-primary-900">
-      O Painel Gerencial da sua diretoria estará disponível aqui na Fase 4.
-    </div>
-
-    <template v-else>
-      <h1 class="mb-4 font-display text-h1 font-bold">Manifestações por situação</h1>
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <div v-for="s in SITUACOES" :key="s.valor" class="rounded-panel bg-white p-4 shadow-sm">
-          <span class="inline-block rounded-full px-2 py-0.5 text-caption" :class="s.classes">{{ s.nome }}</span>
-          <p class="mt-2 font-display text-display text-primary-900">
-            {{ contagens?.[s.valor] ?? 0 }}
-          </p>
-        </div>
-      </div>
-    </template>
+  <div v-if="!perfil" class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-control border border-[#F3D58A] bg-[#FFF8E6] px-3.5 py-3 text-[0.86rem] text-neutral-800">
+    <span class="row-span-2 grid h-5 w-5 place-items-center rounded-full bg-warning text-[0.75rem] font-bold text-white">!</span>
+    <b class="font-semibold">Seu login ainda não tem perfil no sistema</b>
+    <span>Peça ao administrador para cadastrá-lo.</span>
   </div>
+
+  <template v-else-if="perfil.perfil === 'diretor'">
+    <CabecalhoPagina titulo="Painel Gerencial" :subtitulo="subtitulo" />
+    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-control border border-primary-200 bg-primary-50 px-3.5 py-3 text-[0.86rem] text-neutral-800">
+      <span class="row-span-2 grid h-5 w-5 place-items-center rounded-full bg-primary-700 text-[0.75rem] font-bold text-white">i</span>
+      <b class="font-semibold">Em construção</b>
+      <span>Os gráficos da sua diretoria chegam na Fase 4, conforme o CI nº 6660/2025.</span>
+    </div>
+  </template>
+
+  <template v-else>
+    <CabecalhoPagina titulo="Painel" :subtitulo="subtitulo">
+      <template #acoes>
+        <button class="btn btn-secundario btn-pequeno" disabled title="Disponível na Fase 4">Extrato do mês</button>
+        <button class="btn btn-primario btn-pequeno" disabled title="Disponível na Fase 2">+ Nova manifestação</button>
+      </template>
+    </CabecalhoPagina>
+
+    <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <KpiCartao rotulo="Em aberto" :valor="resumo?.contagens.abertas ?? 0" :detalhe="`${resumo?.registradasNoMes ?? 0} registradas este mês`" />
+      <KpiCartao rotulo="Vencem em até 2 d.u." :valor="resumo?.atencao ?? 0" :detalhe="`${resumo?.vencemHoje ?? 0} vencem hoje`" destaque="atencao" />
+      <KpiCartao rotulo="Vencidas" :valor="resumo?.vencidas ?? 0" detalhe="sem resposta após o prazo" destaque="vencida" />
+      <KpiCartao
+        rotulo="Respondidas no prazo (mês)"
+        :valor="resumo?.percentualNoPrazo === null || resumo?.percentualNoPrazo === undefined ? '–' : `${resumo.percentualNoPrazo}%`"
+        :detalhe="resumo?.tempoMedio ? `tempo médio ${resumo.tempoMedio.toFixed(1).replace('.', ',')} d.u.` : 'nenhuma resposta no mês'"
+      />
+    </div>
+
+    <div class="grid gap-3 xl:grid-cols-[1.35fr_1fr]">
+      <section class="cartao">
+        <div class="cartao-topo"><b class="cartao-titulo">Em aberto por diretoria</b><span class="cartao-nota">{{ nomeMes }}</span></div>
+        <div v-if="resumo?.cargaPorDiretoria.length" class="grid gap-2.5 px-4 pb-4 pt-3">
+          <div v-for="c in resumo.cargaPorDiretoria" :key="c.diretoria" class="grid grid-cols-[minmax(0,210px)_1fr_34px] items-center gap-2.5 text-[0.8rem]">
+            <span class="truncate" :title="c.diretoria">{{ nomeDiretoriaCurto(c.diretoria) }}</span>
+            <span class="flex h-3 overflow-hidden rounded-[3px] bg-neutral-50">
+              <i class="block h-full bg-primary-700" :style="{ width: `${(c.noPrazo / maiorCarga) * 100}%` }" />
+              <i class="block h-full bg-due" :style="{ width: `${(c.atencao / maiorCarga) * 100}%` }" />
+              <i class="block h-full bg-danger" :style="{ width: `${(c.vencidas / maiorCarga) * 100}%` }" />
+            </span>
+            <span class="text-right font-mono text-[0.78rem] font-medium text-neutral-700">{{ c.total }}</span>
+          </div>
+        </div>
+        <p v-else class="px-4 py-6 text-[0.84rem] text-neutral-500">Nenhuma manifestação em aberto.</p>
+        <div class="flex gap-3.5 px-4 pb-3.5 text-[0.72rem] text-neutral-500">
+          <span class="flex items-center gap-1.5"><i class="h-[9px] w-[9px] rounded-sm bg-primary-700" />No prazo</span>
+          <span class="flex items-center gap-1.5"><i class="h-[9px] w-[9px] rounded-sm bg-due" />Vence em até 2 d.u.</span>
+          <span class="flex items-center gap-1.5"><i class="h-[9px] w-[9px] rounded-sm bg-danger" />Vencida</span>
+        </div>
+      </section>
+
+      <section class="cartao">
+        <div class="cartao-topo"><b class="cartao-titulo">Precisam de ação hoje</b><span class="cartao-nota">por prazo</span></div>
+        <table v-if="resumo?.urgentes.length" class="lista">
+          <tbody>
+            <tr v-for="m in resumo.urgentes" :key="m.id" :class="{ 'bg-[#FFFAF9]': m.dias_restantes! < 0 }">
+              <td>
+                <div class="numero-interno">{{ m.numero }}</div>
+                <div class="font-semibold text-neutral-900">{{ nomeExibicao(m.assunto) }}</div>
+              </td>
+              <td class="text-right"><PrazoIndicador :dias-restantes="m.dias_restantes" :prazo="m.prazo" /></td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="px-4 py-6 text-[0.84rem] text-neutral-500">Nada vence nos próximos 2 dias úteis.</p>
+      </section>
+    </div>
+  </template>
 </template>

@@ -8,5 +8,7 @@ watch(user, () => {
 </script>
 
 <template>
-  <p class="text-sm text-neutral-600">Entrando…</p>
+  <div class="grid min-h-screen place-items-center">
+    <p class="text-[0.9rem] text-neutral-500">Entrando…</p>
+  </div>
 </template>
