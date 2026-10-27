@@ -1,0 +1,30 @@
+export default defineNuxtConfig({
+  compatibilityDate: '2026-10-01',
+  modules: ['@nuxtjs/tailwindcss', '@nuxtjs/supabase'],
+  css: ['~/assets/css/main.css'],
+  app: {
+    head: {
+      htmlAttrs: { lang: 'pt-BR' },
+      title: 'Ouvidoria DMAE',
+      link: [
+        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap',
+        },
+      ],
+    },
+  },
+  supabase: {
+    // Gerar com `supabase gen types typescript` quando o projeto Supabase existir.
+    types: false,
+    redirectOptions: {
+      login: '/login',
+      callback: '/confirmar',
+      // O Painel Geral (Fase 4) será público.
+      exclude: ['/painel', '/nova-senha'],
+    },
+  },
+  typescript: { strict: true },
+})
