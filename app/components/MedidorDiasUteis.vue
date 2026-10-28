@@ -7,6 +7,7 @@ const props = defineProps<{
   respondidoEm: string | null
   diasRestantes: number | null
   suspenso?: boolean
+  limiteComplementacao?: string | null
   feriados: string[]
 }>()
 
@@ -36,7 +37,13 @@ function classe(d: string, i: number) {
 }
 
 const titulo = computed(() => {
-  if (props.suspenso) return { grande: '—', texto: 'prazo suspenso até a complementação', cor: 'text-neutral-400' }
+  if (props.suspenso) {
+    return {
+      grande: '—',
+      texto: props.limiteComplementacao ? `prazo suspenso · complementação até ${formatarData(props.limiteComplementacao, true)}` : 'prazo suspenso até a complementação',
+      cor: 'text-status-complementacao',
+    }
+  }
   if (props.respondidoEm) {
     const noPrazo = props.respondidoEm <= props.prazo
     return {
@@ -64,13 +71,14 @@ const titulo = computed(() => {
       <b class="font-display text-[2.2rem] font-extrabold leading-none" :class="titulo.cor">{{ titulo.grande }}</b>
       <span class="text-[0.82rem] text-neutral-600">{{ titulo.texto }}</span>
     </div>
-    <div class="grid grid-cols-10 gap-[3px]">
+    <p v-if="suspenso" class="text-[0.74rem] text-neutral-500">Quando a complementação chegar, a contagem recomeça com novo dia 0 (RN10).</p>
+    <div v-if="!suspenso" class="grid grid-cols-10 gap-[3px]">
       <i v-for="(d, i) in dias" :key="d" class="h-[22px] rounded-[3px]" :class="classe(d, i)" :title="formatarData(d)" />
     </div>
-    <div class="grid grid-cols-10 gap-[3px] text-center font-mono text-[0.62rem] text-neutral-500">
+    <div v-if="!suspenso" class="grid grid-cols-10 gap-[3px] text-center font-mono text-[0.62rem] text-neutral-500">
       <span v-for="d in dias" :key="d">{{ d.slice(8) }}</span>
     </div>
-    <div class="flex justify-between text-[0.72rem] text-neutral-500">
+    <div v-if="!suspenso" class="flex justify-between text-[0.72rem] text-neutral-500">
       <span>Prazo {{ formatarData(prazo, true) }}</span>
       <span v-if="!prorrogado">Prorrogação até {{ formatarData(dias[9], true) }}</span>
       <span v-else>Prorrogada</span>

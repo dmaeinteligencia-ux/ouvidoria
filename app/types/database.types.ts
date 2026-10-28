@@ -442,6 +442,26 @@ export type Database = {
         Args: { p_cadastrado_em: string }
         Returns: { dia_zero: string, prazo: string, prazo_prorrogado: string }[]
       }
+      registrar_prorrogacao: {
+        Args: { p_manifestacao_id: number, p_justificativa: string }
+        Returns: undefined
+      }
+      pedir_complementacao: {
+        Args: { p_manifestacao_id: number, p_origem: Database['public']['Enums']['origem_complementacao'], p_pedido_em: string }
+        Returns: undefined
+      }
+      registrar_complementacao: {
+        Args: { p_manifestacao_id: number, p_complementado_em: string }
+        Returns: undefined
+      }
+      registrar_pedido_reabertura: {
+        Args: { p_manifestacao_id: number, p_recebido_em: string, p_texto: string }
+        Returns: number
+      }
+      decidir_reabertura: {
+        Args: { p_pedido_id: number, p_aceito: boolean, p_justificativa: string }
+        Returns: undefined
+      }
       registrar_resposta: {
         Args: {
           p_arquivar?: boolean

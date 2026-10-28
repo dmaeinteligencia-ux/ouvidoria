@@ -10,7 +10,8 @@ export interface EventoHistorico {
   dados_novos: Record<string, unknown> | null
 }
 
-const props = defineProps<{ historico: EventoHistorico[], listas: Listas | null | undefined }>()
+// inicio/fim: limita aos registros de um ciclo pela ordem do histórico (id; fim exclusivo).
+const props = defineProps<{ historico: EventoHistorico[], listas: Listas | null | undefined, inicio?: number, fim?: number }>()
 
 const CAMPOS: Record<string, string> = {
   protocolo_mgouv: 'protocolo MG-OUV',
@@ -36,10 +37,11 @@ interface Evento { id: number, titulo: string, detalhe: string, texto?: string, 
 const eventos = computed<Evento[]>(() => {
   const l = props.listas
   const lista: Evento[] = []
-  for (const h of props.historico) {
+  const doCiclo = props.historico.filter(h => (props.inicio === undefined || h.id >= props.inicio) && (props.fim === undefined || h.id < props.fim))
+  for (const h of doCiclo) {
     const novo = (h.dados_novos ?? {}) as Record<string, any>
     const antigo = (h.dados_antigos ?? {}) as Record<string, any>
-    const quem = [formatarDataHora(h.em), h.usuario].filter(Boolean).join(' · ')
+    const quem = `${formatarDataHora(h.em)} · ${h.usuario ?? 'sistema'}`
 
     if (h.tabela === 'manifestacoes' && h.acao === 'insert') {
       const cadastroDia = paraCampoDataHora(novo.cadastrado_em).slice(0, 10)
@@ -49,6 +51,9 @@ const eventos = computed<Evento[]>(() => {
       lista.push({ id: h.id, titulo: 'Registrada', detalhe: quem + ajuste, cor: 'border-neutral-300 text-neutral-300', texto: novo.dia_zero_corrigido_justificativa ? `Recebimento corrigido: ${novo.dia_zero_corrigido_justificativa}` : undefined })
     }
     else if (h.tabela === 'manifestacoes' && h.acao === 'update') {
+      if (novo.situacao === 'vencida' && antigo.situacao !== 'vencida') {
+        lista.push({ id: h.id + 0.25, titulo: 'Prazo vencido sem resposta', detalhe: quem, cor: 'border-danger text-danger' })
+      }
       if (novo.arquivada && !antigo.arquivada) {
         const motivo = nomeExibicao(nomePorId(l?.motivos, novo.motivo_arquivamento_id))
         lista.push({ id: h.id, titulo: 'Arquivada', detalhe: `${quem} · ${motivo}`, cor: 'border-status-arquivada text-status-arquivada' })
@@ -75,6 +80,65 @@ const eventos = computed<Evento[]>(() => {
         titulo: `${anteriores ? 'Reencaminhada' : 'Encaminhada'} à ${diretoria}`,
         detalhe: `envio em ${formatarData(novo.enviado_em)}${avaliador ? ` · avaliador ${avaliador}` : ''} · registrado ${quem}`,
         cor: 'border-primary-700 text-primary-700',
+      })
+    }
+    else if (h.tabela === 'ciclos' && h.acao === 'insert' && novo.numero > 0) {
+      lista.push({
+        id: h.id,
+        titulo: `Reaberta: ciclo ${novo.numero}`,
+        detalhe: `novo recebimento em ${formatarData(novo.dia_zero)} · ${quem}`,
+        cor: 'border-status-reaberta text-status-reaberta',
+      })
+    }
+    else if (h.tabela === 'ciclos' && h.acao === 'update' && novo.prorrogado && !antigo.prorrogado) {
+      lista.push({
+        id: h.id,
+        titulo: 'Prazo prorrogado para 10 dias úteis',
+        detalhe: quem,
+        texto: novo.prorrogacao_justificativa,
+        cor: 'border-status-prorrogada text-status-prorrogada',
+      })
+    }
+    else if (h.tabela === 'complementacoes' && h.acao === 'insert') {
+      lista.push({
+        id: h.id,
+        titulo: `Complementação pedida ${novo.origem === 'diretoria' ? 'pela diretoria' : 'pela Ouvidoria'}`,
+        detalhe: `pedido em ${formatarData(novo.pedido_em)} · prazo suspenso até a resposta do manifestante, limite ${formatarData(novo.limite)} · ${quem}`,
+        cor: 'border-status-complementacao text-status-complementacao',
+      })
+    }
+    else if (h.tabela === 'complementacoes' && h.acao === 'update' && novo.complementado_em && !antigo.complementado_em) {
+      lista.push({
+        id: h.id,
+        titulo: `Complementação recebida em ${formatarDataHora(novo.complementado_em)}`,
+        detalhe: `a contagem do prazo recomeça · ${quem}`,
+        cor: 'border-status-complementacao text-status-complementacao',
+      })
+    }
+    else if (h.tabela === 'complementacoes' && h.acao === 'update' && novo.arquivada_por_falta && !antigo.arquivada_por_falta) {
+      lista.push({
+        id: h.id,
+        titulo: 'Sem complementação em 10 dias corridos',
+        detalhe: quem,
+        cor: 'border-status-arquivada text-status-arquivada',
+      })
+    }
+    else if (h.tabela === 'pedidos_reabertura' && h.acao === 'insert') {
+      lista.push({
+        id: h.id,
+        titulo: `Pedido de reabertura recebido em ${formatarDataHora(novo.recebido_em)}`,
+        detalhe: `registrado ${quem}`,
+        texto: novo.texto,
+        cor: 'border-status-reaberta text-status-reaberta',
+      })
+    }
+    else if (h.tabela === 'pedidos_reabertura' && h.acao === 'update' && novo.aceito !== null && antigo.aceito === null) {
+      lista.push({
+        id: h.id,
+        titulo: novo.aceito ? 'Reabertura aceita' : 'Reabertura negada',
+        detalhe: quem,
+        texto: novo.justificativa_decisao,
+        cor: novo.aceito ? 'border-status-reaberta text-status-reaberta' : 'border-neutral-400 text-neutral-400',
       })
     }
     else if (h.tabela === 'ciclos' && h.acao === 'update' && novo.respondido_em && !antigo.respondido_em) {
