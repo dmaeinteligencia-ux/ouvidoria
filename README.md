@@ -48,7 +48,7 @@ O script apaga e recria o schema `public` do banco informado antes de cada arqui
 
 ### Usuários e convites
 
-O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para avaliador, a diretoria; no banco o perfil se chama `diretor`), edita, desativa e gera de novo o link de convite ou de nova senha. O sistema não envia e-mail: gera o link (`auth.admin.generateLink`) e o administrador o repassa por e-mail institucional, Teams ou WhatsApp. No link a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
+O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para avaliador, a diretoria; no banco o perfil se chama `diretor`), edita, desativa e gera de novo o link de convite ou de nova senha. O sistema não envia e-mail: gera o link (`auth.admin.generateLink`) e o administrador o repassa por e-mail institucional, Teams ou WhatsApp. O link abre `/confirmar` com o código de uso único, que só é gasto quando a pessoa clica em **Continuar** (a prévia de link do WhatsApp e do Teams abre o endereço antes e gastaria um link do `/verify` do Supabase). Depois a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
 
 Configuração necessária:
 
