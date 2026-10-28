@@ -225,6 +225,7 @@ export type Database = {
           numero: string | null
           numero_imovel: string | null
           observacoes: string | null
+          importada_de: string | null
           protocolo_falabr: string | null
           protocolo_mgouv: string | null
           resolutiva: boolean | null

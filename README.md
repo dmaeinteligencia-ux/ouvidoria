@@ -31,6 +31,7 @@ As migrações ficam em `supabase/migrations` e são aplicadas em ordem:
 | `..._ciclos.sql` | Prorrogação (RN08), complementação com suspensão e arquivamento automático (RN10, RN11), reabertura em 30 dias (RN20 a RN22) e rotina horária `atualizar_situacoes` no pg_cron que marca Vencida (RN13) |
 | `..._indicadores.sql` | Painel Geral (`painel_geral`, público, só números agregados), Painel Gerencial (`painel_gerencial`: Ouvidoria vê tudo, diretor só a própria diretoria) e `extrato_mensal` nas 35 colunas da planilha |
 | `..._posicao_bairros.sql` | Latitude e longitude de cada bairro (marcadas pelo administrador em Cadastros › Bairros) para o mapa de bolhas do Painel Gerencial; o mapa usa o OpenStreetMap, sem chave |
+| `..._importacao_historico.sql` | Fase 5: área de carga `importacao_linhas` e `importacao_processar` (confere sem gravar ou importa) para as planilhas antigas; ver “Importação do histórico” |
 
 Depois de uma migração, atualize `app/types/database.types.ts` (tipos gerados pelo Supabase).
 
@@ -53,3 +54,13 @@ Depois de criar o usuário em Authentication > Users, rode no SQL Editor:
 insert into public.usuarios (id, nome, perfil)
 select id, 'Nome do administrador', 'administrador' from auth.users where email = 'email@dmae.mg.gov.br';
 ```
+
+## Importação do histórico
+
+As planilhas mensais (layout das 35 colunas, desde setembro de 2023) entram em duas etapas, feitas pela equipe técnica direto no banco; nada disso fica exposto na aplicação.
+
+1. `python3 scripts/importar_planilha.py <lote> planilha1.xlsx planilha2.xlsx > carga.sql` lê todas as abas no layout e gera o SQL que grava uma linha por manifestação em `importacao_linhas`. Rode o `carga.sql` no banco.
+2. `select * from importacao_processar('<lote>');` confere o lote sem gravar nada. Os problemas de cada linha ficam em `importacao_linhas.erros` (impedem a importação) e `avisos` (bairro novo, avaliador antigo cadastrado como inativo, CEP ignorado).
+3. Corrigidas as linhas, `select * from importacao_processar('<lote>', true);` importa as que não têm erro. Rodar de novo só tenta as que ficaram de fora.
+
+Regras da carga: a numeração interna segue a ordem de recebimento; a origem fica em `manifestacoes.importada_de`; “Aguardando complementação” é registrada à mão; a prorrogação vale quando a situação é Prorrogada ou a resposta saiu depois dos 5 dias úteis com o prazo prorrogado preenchido. Depois da carga, a rotina `atualizar_situacoes` marca como Vencida o que estiver em aberto fora do prazo.
