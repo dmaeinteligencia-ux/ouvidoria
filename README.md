@@ -46,6 +46,16 @@ DATABASE_URL=postgres://usuario@localhost/banco_de_teste npm run test:db
 
 O script apaga e recria o schema `public` do banco informado antes de cada arquivo de teste; use um banco descartável.
 
+### Usuários e convites
+
+O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para avaliador, a diretoria; no banco o perfil se chama `diretor`), edita, desativa e gera de novo o link de convite ou de nova senha. O sistema não envia e-mail: gera o link (`auth.admin.generateLink`) e o administrador o repassa por e-mail institucional, Teams ou WhatsApp. No link a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
+
+Configuração necessária:
+
+- **Vercel › Settings › Environment Variables:** `NUXT_SUPABASE_SECRET_KEY` com a chave secreta do projeto (Supabase › Project Settings › API Keys › Secret keys). Ela fica só no servidor (rotas `server/api/usuarios`).
+- **Supabase › Authentication › URL Configuration:** Site URL com o endereço do sistema e, em Redirect URLs, `https://<endereço>/**`.
+- Opcional: **Supabase › Authentication › Providers › Email › Email OTP Expiration** até 86400 (24 horas) para o link durar mais que 1 hora.
+
 ### Primeiro administrador
 
 Depois de criar o usuário em Authentication > Users, rode no SQL Editor:

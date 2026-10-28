@@ -418,6 +418,10 @@ export type Database = {
       }
     }
     Functions: {
+      eh_administrador: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
       painel_geral: {
         Args: {
           p_inicio: string, p_fim: string, p_agrupar?: string,

@@ -7,6 +7,7 @@ const senha = ref('')
 const confirmacao = ref('')
 const erro = ref('')
 const salvando = ref(false)
+const convidado = computed(() => user.value?.user_metadata?.trocar_senha === true)
 
 async function salvar() {
   erro.value = ''
@@ -19,10 +20,13 @@ async function salvar() {
     return
   }
   salvando.value = true
-  const { error } = await supabase.auth.updateUser({ password: senha.value })
+  const { error } = await supabase.auth.updateUser({ password: senha.value, data: { trocar_senha: false } })
+  if (!error) await supabase.auth.refreshSession()
   salvando.value = false
   if (error) {
-    erro.value = 'Não foi possível salvar. Peça um novo link na tela de entrada.'
+    erro.value = /different|same/i.test(error.message)
+      ? 'A nova senha precisa ser diferente da anterior.'
+      : 'Não foi possível salvar. Peça um novo link na tela de entrada.'
     return
   }
   await navigateTo('/')
@@ -36,7 +40,7 @@ async function salvar() {
       <div>
         <h1 class="font-display text-[1.5rem] font-extrabold leading-tight">Nova senha</h1>
         <p class="text-[0.85rem] text-neutral-500">
-          {{ user ? 'Escolha a nova senha de acesso.' : 'Abra esta página pelo link enviado ao seu e-mail.' }}
+          {{ convidado ? 'Boas-vindas! Escolha a sua senha para usar o sistema.' : user ? 'Escolha a nova senha de acesso.' : 'Abra esta página pelo link enviado ao seu e-mail.' }}
         </p>
       </div>
       <label class="grid gap-1.5">
