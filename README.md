@@ -28,6 +28,7 @@ As migrações ficam em `supabase/migrations` e são aplicadas em ordem:
 | `..._permissoes_funcoes.sql` | Restringe a execução das funções `security definer` |
 | `..._painel_acompanhamento.sql` | Visão `painel_manifestacoes` (ciclo atual, prazo e dias úteis restantes) |
 | `..._nucleo_manifestacoes.sql` | Ações `registrar_resposta` e `arquivar_manifestacao`, trava de situação (RN24), correção do dia 0, aviso de duplicidade e histórico legível |
+| `..._ciclos.sql` | Prorrogação (RN08), complementação com suspensão e arquivamento automático (RN10, RN11), reabertura em 30 dias (RN20 a RN22) e rotina horária `atualizar_situacoes` no pg_cron que marca Vencida (RN13) |
 
 Depois de uma migração, atualize `app/types/database.types.ts` (tipos gerados pelo Supabase).
 

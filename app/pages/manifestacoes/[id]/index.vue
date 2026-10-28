@@ -43,9 +43,11 @@ interface Ciclo {
   no_prazo: boolean | null
 }
 interface Encaminhamento { diretoria_id: number, avaliador_id: number, enviado_em: string }
+interface Complementacao { id: number, origem: 'ouvidoria' | 'diretoria', pedido_em: string, limite: string }
+interface PedidoReabertura { id: number, recebido_em: string, texto: string }
 
 const { data, refresh, error } = await useAsyncData(`manifestacao-${id}`, async () => {
-  const [m, ciclos, enc, painel, historico] = await Promise.all([
+  const [m, ciclos, enc, painel, historico, pedidos] = await Promise.all([
     supabase.from('manifestacoes').select(`
       id, numero, protocolo_mgouv, protocolo_falabr, situacao, arquivada, resolutiva, cadastrado_em, dia_zero,
       dia_zero_corrigido_justificativa, logradouro, numero_imovel, complemento, cep, descricao, observacoes,
@@ -56,17 +58,25 @@ const { data, refresh, error } = await useAsyncData(`manifestacao-${id}`, async 
     supabase.from('encaminhamentos').select('diretoria_id, avaliador_id, enviado_em').eq('manifestacao_id', id).eq('atual', true).maybeSingle(),
     supabase.from('painel_manifestacoes').select('dias_restantes').eq('id', id).maybeSingle(),
     supabase.rpc('historico_manifestacao', { p_manifestacao_id: id }),
+    supabase.from('pedidos_reabertura').select('id, recebido_em, texto').eq('manifestacao_id', id).is('aceito', null),
   ])
-  for (const r of [m, ciclos, enc, painel, historico]) if (r.error) throw r.error
+  for (const r of [m, ciclos, enc, painel, historico, pedidos]) if (r.error) throw r.error
   if (!m.data) return null
 
-  const ciclo = (ciclos.data as Ciclo[]).at(-1)!
-  const { data: feriados } = await supabase.from('feriados').select('data')
-    .gt('data', ciclo.dia_zero).lte('data', somarDias(ciclo.dia_zero, 40))
+  const todos = ciclos.data as Ciclo[]
+  const ciclo = todos.at(-1)!
+  const [{ data: feriados }, { data: complementacao }] = await Promise.all([
+    supabase.from('feriados').select('data').gt('data', ciclo.dia_zero).lte('data', somarDias(ciclo.dia_zero, 40)),
+    supabase.from('complementacoes').select('id, origem, pedido_em, limite').eq('ciclo_id', ciclo.id)
+      .is('complementado_em', null).eq('arquivada_por_falta', false).maybeSingle(),
+  ])
 
   return {
     m: m.data as unknown as Detalhe,
     ciclo,
+    ciclos: todos,
+    complementacao: complementacao as Complementacao | null,
+    pedidoPendente: ((pedidos.data ?? []) as PedidoReabertura[])[0] ?? null,
     encaminhamento: enc.data as Encaminhamento | null,
     diasRestantes: (painel.data as { dias_restantes: number | null } | null)?.dias_restantes ?? null,
     historico: (historico.data ?? []) as EventoHistorico[],
@@ -78,9 +88,28 @@ const m = computed(() => data.value?.m)
 const respondida = computed(() => m.value?.situacao === 'respondida')
 const suspensa = computed(() => m.value?.situacao === 'aguardando_complementacao')
 const ehEquipe = computed(() => perfil.value?.perfil === 'administrador' || perfil.value?.perfil === 'ouvidoria')
+const hoje = hojeBrasilia()
+
+// RN08: uma prorrogação por ciclo, registrada até o dia do vencimento.
+const podeProrrogar = computed(() => !!data.value && !data.value.ciclo.prorrogado && hoje <= data.value.ciclo.prazo)
+// RN20: reabertura até 30 dias corridos após a primeira resposta.
+const limiteReabertura = computed(() => {
+  const primeira = data.value?.ciclos[0]?.respondido_em
+  return primeira ? somarDias(primeira, 30) : null
+})
+const podeReabrir = computed(() => respondida.value && !m.value?.arquivada && !!limiteReabertura.value && hoje <= limiteReabertura.value)
+
+// Abas de ciclo: cada reabertura começa no registro do histórico que criou o ciclo.
+const cicloVisto = ref<number | null>(null)
+const abaCiclo = computed(() => {
+  const ciclos = data.value?.ciclos ?? []
+  const i = cicloVisto.value === null ? ciclos.length - 1 : ciclos.findIndex(c => c.numero === cicloVisto.value)
+  const inicioDe = (numero?: number) => numero ? data.value?.historico.find(h => h.tabela === 'ciclos' && h.acao === 'insert' && h.dados_novos?.numero === numero)?.id : undefined
+  return { inicio: inicioDe(ciclos[i]?.numero), fim: inicioDe(ciclos[i + 1]?.numero), numero: ciclos[i]?.numero }
+})
 
 // Painel de ação aberto na coluna da direita.
-type Acao = 'encaminhar' | 'responder' | 'arquivar' | null
+type Acao = 'encaminhar' | 'responder' | 'arquivar' | 'prorrogar' | 'pedir_complementacao' | 'complementacao' | 'pedido_reabertura' | 'decidir_reabertura' | null
 const acao = ref<Acao>(null)
 const falha = ref('')
 const salvando = ref(false)
@@ -189,6 +218,58 @@ async function arquivar() {
   }), 'Manifestação arquivada.')
 }
 
+// Prorrogação (RN08)
+const justificativaProrrogacao = ref('')
+function prorrogar() {
+  if (!justificativaProrrogacao.value.trim()) {
+    falha.value = 'Informe a justificativa enviada pelo avaliador (RN08).'
+    return
+  }
+  return executar(() => supabase.rpc('registrar_prorrogacao', {
+    p_manifestacao_id: id, p_justificativa: justificativaProrrogacao.value,
+  }), 'Prazo prorrogado para 10 dias úteis.')
+}
+
+// Complementação (RN10 / RN11)
+const pedidoComp = reactive({ origem: 'ouvidoria' as 'ouvidoria' | 'diretoria', pedido_em: hoje })
+function pedirComplementacao() {
+  return executar(() => supabase.rpc('pedir_complementacao', {
+    p_manifestacao_id: id, p_origem: pedidoComp.origem, p_pedido_em: pedidoComp.pedido_em,
+  }), 'Pedido de complementação registrado. O prazo está suspenso.')
+}
+const complementadoEm = ref(agoraCampoDataHora())
+function registrarComplementacao() {
+  if (!complementadoEm.value) {
+    falha.value = 'Informe a data e a hora em que a complementação chegou.'
+    return
+  }
+  return executar(() => supabase.rpc('registrar_complementacao', {
+    p_manifestacao_id: id, p_complementado_em: deCampoDataHora(complementadoEm.value),
+  }), 'Complementação registrada. A contagem do prazo recomeçou.')
+}
+
+// Reabertura (RN20 / RN21)
+const pedidoReab = reactive({ recebido_em: agoraCampoDataHora(), texto: '' })
+function registrarPedidoReabertura() {
+  if (!pedidoReab.recebido_em || !pedidoReab.texto.trim()) {
+    falha.value = 'Informe a data do pedido e o que o manifestante pediu.'
+    return
+  }
+  return executar(() => supabase.rpc('registrar_pedido_reabertura', {
+    p_manifestacao_id: id, p_recebido_em: deCampoDataHora(pedidoReab.recebido_em), p_texto: pedidoReab.texto,
+  }), 'Pedido de reabertura registrado. Falta a decisão.')
+}
+const decisao = reactive({ aceito: null as boolean | null, justificativa: '' })
+function decidirReabertura() {
+  if (decisao.aceito === null || !decisao.justificativa.trim()) {
+    falha.value = 'Escolha aceitar ou negar e escreva a justificativa (RN21).'
+    return
+  }
+  return executar(() => supabase.rpc('decidir_reabertura', {
+    p_pedido_id: data.value!.pedidoPendente!.id, p_aceito: decisao.aceito!, p_justificativa: decisao.justificativa,
+  }), decisao.aceito ? 'Reabertura aceita: novo ciclo com prazo de 5 dias úteis.' : 'Reabertura negada. A manifestação continua Respondida.')
+}
+
 const endereco = computed(() => {
   if (!m.value) return ''
   const rua = [m.value.logradouro && nomeExibicao(m.value.logradouro), m.value.numero_imovel, m.value.complemento].filter(Boolean).join(', ')
@@ -271,11 +352,23 @@ const opcoes = (lista: { id: number, nome: string }[] | undefined) => (lista ?? 
           <b class="rotulo-caps mr-1.5">Observações internas</b>{{ m.observacoes }}
         </p>
 
-        <div class="flex gap-1.5 border-t border-neutral-100 px-5 pt-3">
-          <span class="rounded-control border border-primary-700 bg-primary-50 px-2.5 py-1.5 text-[0.76rem] font-semibold text-primary-700">Ciclo original</span>
-          <span class="rounded-control border border-dashed border-neutral-200 px-2.5 py-1.5 text-[0.76rem] text-neutral-400">Sem reaberturas</span>
+        <div class="flex flex-wrap gap-1.5 border-t border-neutral-100 px-5 pt-3" role="tablist" aria-label="Ciclos">
+          <button
+            v-for="c in data.ciclos"
+            :key="c.id"
+            type="button"
+            role="tab"
+            :aria-selected="abaCiclo.numero === c.numero"
+            class="rounded-control border px-2.5 py-1.5 text-[0.76rem]"
+            :class="abaCiclo.numero === c.numero ? 'border-primary-700 bg-primary-50 font-semibold text-primary-700' : 'border-neutral-200 bg-white text-neutral-600 hover:border-primary-300'"
+            @click="cicloVisto = c.numero"
+          >
+            {{ c.numero === 0 ? 'Ciclo original' : `Reabertura ${c.numero}` }}
+            <span v-if="c.respondido_em" class="ml-1 font-mono text-[0.7rem] text-neutral-500">{{ formatarData(c.respondido_em, true) }}</span>
+          </button>
+          <span v-if="data.ciclos.length === 1" class="rounded-control border border-dashed border-neutral-200 px-2.5 py-1.5 text-[0.76rem] text-neutral-400">Sem reaberturas</span>
         </div>
-        <LinhaDoTempo :historico="data.historico" :listas="listas" />
+        <LinhaDoTempo :historico="data.historico" :listas="listas" :inicio="abaCiclo.inicio" :fim="abaCiclo.fim" />
       </article>
 
       <aside class="grid gap-3">
@@ -288,19 +381,152 @@ const opcoes = (lista: { id: number, nome: string }[] | undefined) => (lista ?? 
           :respondido-em="data.ciclo.respondido_em"
           :dias-restantes="data.diasRestantes"
           :suspenso="suspensa"
+          :limite-complementacao="data.complementacao?.limite"
           :feriados="data.feriados"
         />
 
+        <AvisoCaixa v-if="suspensa && data.complementacao" titulo="Aguardando complementação" tipo="info">
+          Pedida {{ data.complementacao.origem === 'ouvidoria' ? 'pela Ouvidoria' : 'pela diretoria' }} em {{ formatarData(data.complementacao.pedido_em, true) }}.
+          Sem resposta até {{ formatarData(data.complementacao.limite, true) }}, ela é arquivada por insuficiência de dados (RN11).
+        </AvisoCaixa>
+        <AvisoCaixa v-if="data.pedidoPendente && !acao" titulo="Pedido de reabertura aguardando decisão" tipo="atencao">
+          Recebido em {{ formatarDataHora(data.pedidoPendente.recebido_em) }}.
+        </AvisoCaixa>
+
         <!-- Ações permitidas para a situação atual (RN24) -->
         <div v-if="!acao" class="cartao grid gap-2 p-4">
-          <template v-if="!respondida">
-            <button class="btn" :class="encaminhadoA ? 'btn-primario' : 'btn-secundario'" :disabled="suspensa" @click="abrir('responder')">Registrar resposta</button>
-            <button class="btn" :class="encaminhadoA ? 'btn-fantasma' : 'btn-primario'" @click="abrir('encaminhar')">{{ encaminhadoA ? 'Reencaminhar' : 'Encaminhar' }}</button>
-            <button class="btn btn-secundario" disabled title="Disponível na Fase 3">Prorrogar para 10 d.u.</button>
+          <template v-if="suspensa">
+            <button class="btn btn-primario" @click="abrir('complementacao')">Registrar complementação</button>
+            <button class="btn btn-fantasma" @click="abrir('encaminhar')">{{ encaminhadoA ? 'Reencaminhar' : 'Encaminhar' }}</button>
           </template>
-          <button v-else-if="!m.arquivada" class="btn btn-perigo" @click="abrir('arquivar')">Arquivar</button>
+          <template v-else-if="!respondida">
+            <button class="btn" :class="encaminhadoA ? 'btn-primario' : 'btn-secundario'" @click="abrir('responder')">Registrar resposta</button>
+            <button class="btn" :class="encaminhadoA ? 'btn-fantasma' : 'btn-primario'" @click="abrir('encaminhar')">{{ encaminhadoA ? 'Reencaminhar' : 'Encaminhar' }}</button>
+            <button
+              class="btn btn-secundario"
+              :disabled="!podeProrrogar"
+              :title="data.ciclo.prorrogado ? 'Este ciclo já foi prorrogado (RN08)' : !podeProrrogar ? 'O prazo já venceu (RN08)' : undefined"
+              @click="abrir('prorrogar')"
+            >
+              {{ data.ciclo.prorrogado ? 'Já prorrogada' : 'Prorrogar para 10 d.u.' }}
+            </button>
+            <button class="btn btn-fantasma" @click="abrir('pedir_complementacao')">Pedir complementação</button>
+          </template>
+          <template v-else-if="!m.arquivada">
+            <button v-if="data.pedidoPendente" class="btn btn-primario" @click="abrir('decidir_reabertura')">Decidir reabertura</button>
+            <button
+              v-else
+              class="btn btn-secundario"
+              :disabled="!podeReabrir"
+              :title="podeReabrir ? `Aceita pedidos até ${formatarData(limiteReabertura!, true)} (RN20)` : 'Passaram os 30 dias da primeira resposta (RN20)'"
+              @click="abrir('pedido_reabertura')"
+            >
+              Registrar pedido de reabertura
+            </button>
+            <p v-if="!data.pedidoPendente && limiteReabertura" class="text-[0.72rem] text-neutral-500">
+              {{ podeReabrir ? `Reabertura pode ser pedida até ${formatarData(limiteReabertura, true)}.` : 'Prazo de reabertura encerrado (30 dias da primeira resposta).' }}
+            </p>
+            <button class="btn btn-perigo" @click="abrir('arquivar')">Arquivar</button>
+          </template>
           <NuxtLink :to="`/manifestacoes/${id}/editar`" class="btn btn-fantasma">Corrigir dados</NuxtLink>
         </div>
+
+        <form v-else-if="acao === 'prorrogar'" class="cartao grid gap-3 p-4" @submit.prevent="prorrogar">
+          <b class="cartao-titulo">Prorrogar para 10 dias úteis</b>
+          <p class="text-[0.76rem] text-neutral-500">
+            O prazo passa de {{ formatarData(data.ciclo.prazo, true) }} para 10 dias úteis contados do mesmo dia 0. Uma vez por ciclo (RN08).
+          </p>
+          <CampoForm rotulo="Justificativa do avaliador" obrigatorio>
+            <textarea v-model="justificativaProrrogacao" class="campo min-h-[90px] leading-[1.45]" rows="4" />
+          </CampoForm>
+          <AvisoCaixa v-if="falha" titulo="Não foi salvo" tipo="erro">{{ falha }}</AvisoCaixa>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-fantasma btn-pequeno" @click="abrir(null)">Cancelar</button>
+            <button class="btn btn-primario btn-pequeno" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Prorrogar' }}</button>
+          </div>
+        </form>
+
+        <form v-else-if="acao === 'pedir_complementacao'" class="cartao grid gap-3 p-4" @submit.prevent="pedirComplementacao">
+          <b class="cartao-titulo">Pedir complementação</b>
+          <p class="text-[0.76rem] text-neutral-500">O prazo fica suspenso. Se o manifestante não complementar em 10 dias corridos, a manifestação é arquivada por insuficiência de dados (RN10, RN11).</p>
+          <CampoForm rotulo="Quem pediu" obrigatorio grupo>
+            <div class="flex gap-2">
+              <label
+                v-for="o in [{ v: 'ouvidoria', n: 'Ouvidoria' }, { v: 'diretoria', n: 'Diretoria' }] as const"
+                :key="o.v"
+                class="flex-1 cursor-pointer rounded-control border py-2 text-center text-[0.8rem] focus-within:shadow-focus"
+                :class="pedidoComp.origem === o.v ? 'border-primary-700 bg-primary-50 font-semibold text-primary-800' : 'border-neutral-200 bg-white text-neutral-700'"
+              >
+                <input v-model="pedidoComp.origem" type="radio" name="origem" :value="o.v" class="sr-only">{{ o.n }}
+              </label>
+            </div>
+          </CampoForm>
+          <CampoForm rotulo="Data do pedido" obrigatorio>
+            <input v-model="pedidoComp.pedido_em" type="date" class="campo font-mono" :min="data.ciclo.dia_zero" :max="hoje">
+          </CampoForm>
+          <AvisoCaixa v-if="falha" titulo="Não foi salvo" tipo="erro">{{ falha }}</AvisoCaixa>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-fantasma btn-pequeno" @click="abrir(null)">Cancelar</button>
+            <button class="btn btn-primario btn-pequeno" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Registrar pedido' }}</button>
+          </div>
+        </form>
+
+        <form v-else-if="acao === 'complementacao'" class="cartao grid gap-3 p-4" @submit.prevent="registrarComplementacao">
+          <b class="cartao-titulo">Registrar complementação</b>
+          <p class="text-[0.76rem] text-neutral-500">A contagem recomeça com novo dia 0, pela regra das 17h (RN04, RN10).</p>
+          <CampoForm rotulo="Chegada da complementação" obrigatorio>
+            <input v-model="complementadoEm" type="datetime-local" class="campo font-mono">
+          </CampoForm>
+          <AvisoCaixa v-if="falha" titulo="Não foi salvo" tipo="erro">{{ falha }}</AvisoCaixa>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-fantasma btn-pequeno" @click="abrir(null)">Cancelar</button>
+            <button class="btn btn-primario btn-pequeno" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Registrar' }}</button>
+          </div>
+        </form>
+
+        <form v-else-if="acao === 'pedido_reabertura'" class="cartao grid gap-3 p-4" @submit.prevent="registrarPedidoReabertura">
+          <b class="cartao-titulo">Pedido de reabertura</b>
+          <p class="text-[0.76rem] text-neutral-500">Aceito até {{ limiteReabertura && formatarData(limiteReabertura, true) }}, 30 dias corridos após a primeira resposta (RN20).</p>
+          <CampoForm rotulo="Recebimento do pedido" obrigatorio>
+            <input v-model="pedidoReab.recebido_em" type="datetime-local" class="campo font-mono">
+          </CampoForm>
+          <CampoForm rotulo="O que o manifestante pediu" obrigatorio>
+            <textarea v-model="pedidoReab.texto" class="campo min-h-[90px] leading-[1.45]" rows="4" />
+          </CampoForm>
+          <AvisoCaixa v-if="falha" titulo="Não foi salvo" tipo="erro">{{ falha }}</AvisoCaixa>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-fantasma btn-pequeno" @click="abrir(null)">Cancelar</button>
+            <button class="btn btn-primario btn-pequeno" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Registrar pedido' }}</button>
+          </div>
+        </form>
+
+        <form v-else-if="acao === 'decidir_reabertura' && data.pedidoPendente" class="cartao grid gap-3 p-4" @submit.prevent="decidirReabertura">
+          <b class="cartao-titulo">Decidir reabertura</b>
+          <blockquote class="whitespace-pre-line rounded-control bg-neutral-50 px-3 py-2 text-[0.8rem] text-neutral-700">{{ data.pedidoPendente.texto }}</blockquote>
+          <CampoForm rotulo="Decisão" obrigatorio grupo>
+            <div class="flex gap-2">
+              <label
+                v-for="o in [{ v: true, n: 'Aceitar' }, { v: false, n: 'Negar' }]"
+                :key="o.n"
+                class="flex-1 cursor-pointer rounded-control border py-2 text-center text-[0.8rem] focus-within:shadow-focus"
+                :class="decisao.aceito === o.v ? 'border-primary-700 bg-primary-50 font-semibold text-primary-800' : 'border-neutral-200 bg-white text-neutral-700'"
+              >
+                <input v-model="decisao.aceito" type="radio" name="decisao" :value="o.v" class="sr-only">{{ o.n }}
+              </label>
+            </div>
+          </CampoForm>
+          <CampoForm rotulo="Justificativa" obrigatorio>
+            <textarea v-model="decisao.justificativa" class="campo min-h-[80px] leading-[1.45]" rows="3" />
+          </CampoForm>
+          <p class="text-[0.74rem] text-neutral-500">
+            {{ decisao.aceito === false ? 'Negada, a manifestação continua Respondida (RN21).' : 'Aceita, abre um novo ciclo com dia 0 no recebimento do pedido e prazo de 5 d.u. A resposta anterior fica preservada (RN21, RN22).' }}
+          </p>
+          <AvisoCaixa v-if="falha" titulo="Não foi salvo" tipo="erro">{{ falha }}</AvisoCaixa>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-fantasma btn-pequeno" @click="abrir(null)">Cancelar</button>
+            <button class="btn btn-primario btn-pequeno" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Registrar decisão' }}</button>
+          </div>
+        </form>
 
         <form v-else-if="acao === 'encaminhar'" class="cartao grid gap-3 p-4" @submit.prevent="encaminhar">
           <b class="cartao-titulo">{{ encaminhadoA ? 'Reencaminhar' : 'Encaminhar' }}</b>

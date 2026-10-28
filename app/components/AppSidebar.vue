@@ -16,7 +16,7 @@ const grupos = computed<{ titulo?: string, itens: Item[] }[]>(() => {
     { rotulo: 'Painel', para: '/' },
     { rotulo: 'Manifestações', para: '/manifestacoes', contador: props.contagens?.abertas },
     { rotulo: 'Vencidas', para: '/manifestacoes?prazo=vencidas', contador: props.contagens?.vencidas, alerta: true },
-    { rotulo: 'Reaberturas', contador: props.contagens?.reabertas },
+    { rotulo: 'Reaberturas', para: '/manifestacoes?situacao=reaberta', contador: props.contagens?.reabertas },
   ]
   if (props.perfil === 'diretor') return [{ itens: [{ rotulo: 'Painel', para: '/' }] }]
   return [
