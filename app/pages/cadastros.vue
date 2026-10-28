@@ -152,6 +152,28 @@ async function adicionarBairro() {
   editando.value = data as PosicaoBairro
 }
 
+// Correção do nome pelo administrador; as manifestações seguem ligadas ao bairro pelo id.
+const nomeBairro = ref('')
+watch(editando, (b) => { nomeBairro.value = b ? nomeExibicao(b.nome) : '' })
+async function renomearBairro() {
+  const b = editando.value
+  if (!b) return
+  mensagem.value = null
+  const nome = nomeBairro.value.trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-BR')
+  if (!nome || nome === b.nome) return
+  salvando.value = true
+  const { error } = await supabase.from('bairros').update({ nome }).eq('id', b.id)
+  salvando.value = false
+  if (error) {
+    mensagem.value = { tipo: 'erro', texto: mensagemErro(error) }
+    return
+  }
+  const antigo = nomeExibicao(b.nome)
+  editando.value = { ...b, nome }
+  await depoisDeAlterar(`${antigo} agora se chama ${nomeExibicao(nome)}.`)
+  await refreshNuxtData('posicoes-bairros')
+}
+
 async function salvarPosicao(posicao: { latitude: number, longitude: number } | null) {
   const b = editando.value
   if (!b) return
@@ -216,6 +238,17 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
       </CampoForm>
       <button class="btn btn-primario" :disabled="salvando">Adicionar e marcar no mapa</button>
     </form>
+    <form v-if="aba === 'bairros' && editando" class="flex flex-wrap items-end gap-3 bg-neutral-25 px-3.5 pt-3" @submit.prevent="renomearBairro">
+      <CampoForm rotulo="Nome do bairro" class="w-[280px]">
+        <input v-model="nomeBairro" class="campo" autocomplete="off">
+      </CampoForm>
+      <button
+        class="btn btn-secundario"
+        :disabled="salvando || !nomeBairro.trim() || nomeBairro.trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-BR') === editando.nome"
+      >
+        Renomear
+      </button>
+    </form>
     <MapaPosicao
       v-if="aba === 'bairros' && editando"
       :key="editando.id"
@@ -256,7 +289,7 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
                   class="text-[0.78rem] font-semibold text-primary-700 hover:underline"
                   @click="editando = linha.bairro"
                 >
-                  {{ linha.bairro.latitude == null ? 'Marcar no mapa' : 'Ajustar' }}
+                  {{ linha.bairro.latitude == null ? 'Marcar no mapa' : 'Editar' }}
                 </button>
               </span>
             </td>
