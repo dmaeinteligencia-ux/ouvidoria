@@ -21,7 +21,6 @@ export async function criarMapa(elemento: HTMLElement) {
     zoom: ZOOM_CIDADE,
     minZoom: 10,
     maxBounds: L.latLngBounds(LIMITES_MUNICIPIO).pad(0.2),
-    scrollWheelZoom: false,
   })
   L.tileLayer(CAMADA_OSM, { maxZoom: 18, attribution: ATRIBUICAO_OSM }).addTo(mapa)
   mapa.attributionControl.setPrefix(false)

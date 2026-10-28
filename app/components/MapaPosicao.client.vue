@@ -24,7 +24,6 @@ onMounted(async () => {
   if (!elemento.value) return
   const { L, mapa: m } = await criarMapa(elemento.value)
   mapa = m
-  mapa.scrollWheelZoom.enable()
   for (const b of props.outros) {
     if (b.id === props.bairro.id || b.latitude == null) continue
     L.circleMarker([Number(b.latitude), Number(b.longitude)], { radius: 5, color: '#ffffff', weight: 1, fillColor: '#6b7280', fillOpacity: 0.8 })
