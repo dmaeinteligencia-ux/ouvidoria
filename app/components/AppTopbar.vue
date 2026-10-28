@@ -7,7 +7,7 @@ const emit = defineEmits<{ sair: [] }>()
 const nomesPerfil: Record<string, string> = {
   administrador: 'Administrador',
   ouvidoria: 'Ouvidoria',
-  diretor: 'Diretor',
+  diretor: 'Avaliador',
 }
 
 const equipe = computed(() => props.perfil?.perfil === 'administrador' || props.perfil?.perfil === 'ouvidoria')

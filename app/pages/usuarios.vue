@@ -22,7 +22,7 @@ const { data: usuarios, status, error: erroLista, refresh } = useFetch<Usuario[]
 const PERFIS: { valor: Perfil, nome: string, ajuda: string }[] = [
   { valor: 'ouvidoria', nome: 'Ouvidoria', ajuda: 'Registra e acompanha as manifestações.' },
   { valor: 'administrador', nome: 'Administrador', ajuda: 'Tudo da Ouvidoria, mais cadastros e usuários.' },
-  { valor: 'diretor', nome: 'Diretor', ajuda: 'Só o Painel Gerencial da própria diretoria.' },
+  { valor: 'diretor', nome: 'Avaliador', ajuda: 'Só o Painel Gerencial da própria diretoria.' },
 ]
 const nomePerfil = (p: Perfil) => PERFIS.find(x => x.valor === p)?.nome ?? p
 

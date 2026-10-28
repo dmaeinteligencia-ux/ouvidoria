@@ -45,12 +45,12 @@ export function falha(statusCode: number, message: string): never {
   throw createError({ statusCode, message })
 }
 
-// Diretor precisa de diretoria; os demais perfis não têm.
+// Avaliador (perfil diretor no banco) precisa de diretoria; os demais perfis não têm.
 export function validarPerfil(perfil: unknown, diretoriaId: unknown): { perfil: PerfilUsuario, diretoria_id: number | null } {
   if (!PERFIS.includes(perfil as PerfilUsuario)) falha(400, 'Escolha o perfil.')
   if (perfil === 'diretor') {
     const d = Number(diretoriaId)
-    if (!Number.isInteger(d) || d <= 0) falha(400, 'Escolha a diretoria do diretor.')
+    if (!Number.isInteger(d) || d <= 0) falha(400, 'Escolha a diretoria do avaliador.')
     return { perfil: 'diretor', diretoria_id: d }
   }
   return { perfil: perfil as PerfilUsuario, diretoria_id: null }

@@ -48,7 +48,7 @@ O script apaga e recria o schema `public` do banco informado antes de cada arqui
 
 ### Usuários e convites
 
-O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para diretor, a diretoria), edita, desativa e reenvia o convite ou o link de nova senha. O convite chega por e-mail; no link a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
+O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para avaliador, a diretoria; no banco o perfil se chama `diretor`), edita, desativa e reenvia o convite ou o link de nova senha. O convite chega por e-mail; no link a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
 
 Configuração necessária:
 
