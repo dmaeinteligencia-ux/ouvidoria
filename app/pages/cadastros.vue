@@ -125,6 +125,33 @@ const editando = ref<PosicaoBairro | null>(null)
 const bairrosMarcados = computed(() => (linhas.value ?? []).flatMap(l => (l.bairro?.latitude != null ? [l.bairro] : [])))
 watch(aba, () => { editando.value = null })
 
+// Bairro cadastrado direto aqui, já abrindo o mapa para marcar a posição.
+const novoBairro = ref('')
+async function adicionarBairro() {
+  mensagem.value = null
+  const nome = novoBairro.value.trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-BR')
+  if (!nome) {
+    mensagem.value = { tipo: 'erro', texto: 'Informe o nome do bairro.' }
+    return
+  }
+  const existente = linhas.value?.find(l => l.bairro?.nome.toLocaleUpperCase('pt-BR') === nome)?.bairro
+  if (existente) {
+    novoBairro.value = ''
+    editando.value = existente
+    return
+  }
+  salvando.value = true
+  const { data, error } = await supabase.from('bairros').insert({ nome }).select('id, nome, latitude, longitude').single()
+  salvando.value = false
+  if (error) {
+    mensagem.value = { tipo: 'erro', texto: mensagemErro(error) }
+    return
+  }
+  novoBairro.value = ''
+  await depoisDeAlterar(`${nomeExibicao(nome)} cadastrado. Marque a posição no mapa.`)
+  editando.value = data as PosicaoBairro
+}
+
 async function salvarPosicao(posicao: { latitude: number, longitude: number } | null) {
   const b = editando.value
   if (!b) return
@@ -181,8 +208,14 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
       <button class="btn btn-primario" :disabled="salvando">Adicionar avaliador</button>
     </form>
     <p v-if="aba === 'bairros'" class="border-b border-neutral-100 px-3.5 py-2.5 text-[0.8rem] text-neutral-600">
-      Cada bairro marcado aparece como uma bolha no mapa do Painel Gerencial. Os bairros novos entram pelo cadastro das manifestações.
+      Cada bairro marcado aparece como uma bolha no mapa do Painel Gerencial. Os bairros também entram quando são digitados numa manifestação.
     </p>
+    <form v-if="aba === 'bairros' && ehAdmin" class="flex flex-wrap items-end gap-3 border-b border-neutral-100 bg-neutral-25 px-3.5 py-3" @submit.prevent="adicionarBairro">
+      <CampoForm rotulo="Novo bairro" class="w-[280px]">
+        <input v-model="novoBairro" class="campo" autocomplete="off">
+      </CampoForm>
+      <button class="btn btn-primario" :disabled="salvando">Adicionar e marcar no mapa</button>
+    </form>
     <MapaPosicao
       v-if="aba === 'bairros' && editando"
       :key="editando.id"
