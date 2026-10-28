@@ -7,6 +7,8 @@ const RESTRICOES: Record<string, string> = {
   tem_protocolo: 'Informe pelo menos um protocolo (MG-OUV ou Fala.BR).',
   bairros_nome_key: 'Já existe um bairro com esse nome.',
   cep_formato: 'O CEP deve seguir o formato 00000-000.',
+  feriados_pkey: 'Já existe um feriado nessa data.',
+  encaminhamento_atual_unico: 'Este avaliador já está no encaminhamento.',
 }
 
 export function mensagemErro(erro: unknown): string {

@@ -8,7 +8,7 @@ export interface LinhaPainel {
   arquivada: boolean
   prazo: string | null
   dias_restantes: number | null
-  diretoria: string | null
+  diretorias: string[] | null
   dia_zero: string
 }
 
@@ -35,7 +35,7 @@ export function useResumoPainel() {
     const [linhasResp, respostasResp] = await Promise.all([
       supabase
         .from('painel_manifestacoes')
-        .select('id, numero, assunto, situacao, arquivada, prazo, dias_restantes, diretoria, dia_zero'),
+        .select('id, numero, assunto, situacao, arquivada, prazo, dias_restantes, diretorias, dia_zero'),
       supabase
         .from('ciclos_prazos')
         .select('no_prazo, tempo_dias_uteis')
@@ -53,14 +53,16 @@ export function useResumoPainel() {
     const atencao = contando.filter(l => l.dias_restantes! >= 0 && l.dias_restantes! <= 2)
 
     const porDiretoria = new Map<string, CargaDiretoria>()
+    // Encaminhada a mais de uma diretoria: conta na carga de cada uma.
     for (const l of abertas) {
-      const nome = l.diretoria ?? 'Não encaminhada'
-      const c = porDiretoria.get(nome) ?? { diretoria: nome, noPrazo: 0, atencao: 0, vencidas: 0, total: 0 }
-      c.total++
-      if (l.dias_restantes !== null && l.dias_restantes < 0) c.vencidas++
-      else if (l.dias_restantes !== null && l.dias_restantes <= 2) c.atencao++
-      else c.noPrazo++
-      porDiretoria.set(nome, c)
+      for (const nome of l.diretorias ?? ['Não encaminhada']) {
+        const c = porDiretoria.get(nome) ?? { diretoria: nome, noPrazo: 0, atencao: 0, vencidas: 0, total: 0 }
+        c.total++
+        if (l.dias_restantes !== null && l.dias_restantes < 0) c.vencidas++
+        else if (l.dias_restantes !== null && l.dias_restantes <= 2) c.atencao++
+        else c.noPrazo++
+        porDiretoria.set(nome, c)
+      }
     }
 
     const respostas = (respostasResp.data ?? []) as { no_prazo: boolean, tempo_dias_uteis: number }[]

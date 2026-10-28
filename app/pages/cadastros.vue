@@ -29,7 +29,9 @@ const tiposFeriado: Record<string, string> = {
   ponto_facultativo: 'Ponto facultativo',
 }
 
-interface Linha { colunas: string[], avaliadores?: { id: number, nome: string }[], bairro?: PosicaoBairro }
+type TipoFeriado = 'nacional' | 'estadual' | 'municipal' | 'ponto_facultativo'
+interface Feriado { data: string, descricao: string, tipo: TipoFeriado }
+interface Linha { colunas: string[], avaliadores?: { id: number, nome: string }[], bairro?: PosicaoBairro, feriado?: Feriado }
 
 const cabecalhos: Record<Aba, string[]> = {
   diretorias: ['Diretoria', 'Avaliadores'],
@@ -68,10 +70,7 @@ const { data: linhas, pending } = await useAsyncData('cadastro', async (): Promi
       const { data, error } = await supabase.from('feriados').select('data, descricao, tipo')
         .gte('data', `${new Date().getFullYear()}-01-01`).order('data')
       if (error) throw error
-      return (data as { data: string, descricao: string, tipo: string }[]).map((f) => {
-        const [ano, mes, dia] = f.data.split('-')
-        return { colunas: [`${dia}/${mes}/${ano}`, f.descricao, tiposFeriado[f.tipo] ?? f.tipo] }
-      })
+      return (data as Feriado[]).map(f => ({ colunas: [formatarData(f.data), f.descricao, tiposFeriado[f.tipo] ?? f.tipo], feriado: f }))
     }
     default: {
       const { data, error } = await supabase.from(aba.value).select('nome').order('nome')
@@ -191,6 +190,35 @@ async function salvarPosicao(posicao: { latitude: number, longitude: number } | 
   await refreshNuxtData('posicoes-bairros')
 }
 
+// RN09: feriados e pontos facultativos entram na contagem de dias úteis. Os prazos em aberto são
+// recalculados na hora; a situação Vencida se ajusta na rotina de hora em hora.
+const novoFeriado = reactive({ data: '', descricao: '', tipo: 'municipal' as TipoFeriado })
+async function adicionarFeriado() {
+  mensagem.value = null
+  const descricao = novoFeriado.descricao.trim().replace(/\s+/g, ' ')
+  if (!novoFeriado.data || !descricao) {
+    mensagem.value = { tipo: 'erro', texto: 'Informe a data e a descrição do feriado.' }
+    return
+  }
+  salvando.value = true
+  const { error } = await supabase.from('feriados').insert({ data: novoFeriado.data, descricao, tipo: novoFeriado.tipo })
+  salvando.value = false
+  if (error) {
+    mensagem.value = { tipo: 'erro', texto: mensagemErro(error) }
+    return
+  }
+  const data = novoFeriado.data
+  Object.assign(novoFeriado, { data: '', descricao: '' })
+  await depoisDeAlterar(`Feriado de ${formatarData(data)} cadastrado. Os prazos já contam com ele.`)
+}
+async function excluirFeriado(f: Feriado) {
+  if (!confirm(`Excluir o feriado de ${formatarData(f.data)} (${f.descricao})? Os prazos que passam por essa data serão recalculados.`)) return
+  mensagem.value = null
+  const { error } = await supabase.from('feriados').delete().eq('data', f.data)
+  if (error) mensagem.value = { tipo: 'erro', texto: mensagemErro(error) }
+  else await depoisDeAlterar(`Feriado de ${formatarData(f.data)} excluído.`)
+}
+
 async function desativarAvaliador(a: { id: number, nome: string }) {
   if (!confirm(`Desativar ${a.nome}? Ele deixa de aparecer nos encaminhamentos; o histórico continua.`)) return
   const { error } = await supabase.from('avaliadores').update({ ativo: false }).eq('id', a.id)
@@ -258,7 +286,21 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
       @salvar="salvarPosicao"
       @cancelar="editando = null"
     />
-    <AvisoCaixa v-if="mensagem && (aba === 'diretorias' || aba === 'bairros')" class="mx-3.5 mt-3" :titulo="mensagem.texto" :tipo="mensagem.tipo" />
+    <form v-if="aba === 'feriados' && ehAdmin" class="flex flex-wrap items-end gap-3 border-b border-neutral-100 bg-neutral-25 px-3.5 py-3" @submit.prevent="adicionarFeriado">
+      <CampoForm rotulo="Data" obrigatorio>
+        <input v-model="novoFeriado.data" type="date" class="campo font-mono">
+      </CampoForm>
+      <CampoForm rotulo="Descrição" obrigatorio class="w-[280px]">
+        <input v-model="novoFeriado.descricao" class="campo" autocomplete="off" placeholder="Ex.: Aniversário de Uberlândia">
+      </CampoForm>
+      <CampoForm rotulo="Tipo" obrigatorio>
+        <select v-model="novoFeriado.tipo" class="campo">
+          <option v-for="(nome, valor) in tiposFeriado" :key="valor" :value="valor">{{ nome }}</option>
+        </select>
+      </CampoForm>
+      <button class="btn btn-primario" :disabled="salvando">Adicionar feriado</button>
+    </form>
+    <AvisoCaixa v-if="mensagem && (aba === 'diretorias' || aba === 'bairros' || aba === 'feriados')" class="mx-3.5 mt-3" :titulo="mensagem.texto" :tipo="mensagem.tipo" />
     <p v-if="pending" class="px-4 py-6 text-[0.84rem] text-neutral-500">Carregando…</p>
     <table v-else class="lista">
       <thead>
@@ -291,6 +333,16 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
                 >
                   {{ linha.bairro.latitude == null ? 'Marcar no mapa' : 'Editar' }}
                 </button>
+              </span>
+            </td>
+          </template>
+          <template v-else-if="aba === 'feriados' && linha.feriado">
+            <td class="font-mono !font-medium text-primary-700">{{ linha.colunas[0] }}</td>
+            <td class="text-neutral-600">{{ linha.colunas[1] }}</td>
+            <td class="text-neutral-600">
+              <span class="flex flex-wrap items-center justify-between gap-3">
+                {{ linha.colunas[2] }}
+                <button v-if="ehAdmin" type="button" class="text-[0.78rem] font-semibold text-danger hover:underline" @click="excluirFeriado(linha.feriado)">Excluir</button>
               </span>
             </td>
           </template>
