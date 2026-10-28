@@ -43,7 +43,7 @@ interface Ciclo {
   no_prazo: boolean | null
 }
 interface Encaminhamento { diretoria_id: number, avaliador_id: number, enviado_em: string }
-interface Complementacao { id: number, origem: 'ouvidoria' | 'diretoria', pedido_em: string, limite: string }
+interface Complementacao { id: number, origem: 'ouvidoria' | 'diretoria', pedido_em: string, limite: string, texto: string | null }
 interface PedidoReabertura { id: number, recebido_em: string, texto: string }
 
 const { data, refresh, error } = await useAsyncData(`manifestacao-${id}`, async () => {
@@ -55,7 +55,7 @@ const { data, refresh, error } = await useAsyncData(`manifestacao-${id}`, async 
       assunto:assuntos(nome), bairro:bairros(nome), motivo:motivos_arquivamento(nome),
       original:duplicada_de(id, numero)`).eq('id', id).maybeSingle(),
     supabase.from('ciclos_prazos').select('id, numero, dia_zero, prorrogado, prazo, respondido_em, no_prazo').eq('manifestacao_id', id).order('numero'),
-    supabase.from('encaminhamentos').select('diretoria_id, avaliador_id, enviado_em').eq('manifestacao_id', id).eq('atual', true).maybeSingle(),
+    supabase.from('encaminhamentos').select('diretoria_id, avaliador_id, enviado_em').eq('manifestacao_id', id).eq('atual', true),
     supabase.from('painel_manifestacoes').select('dias_restantes').eq('id', id).maybeSingle(),
     supabase.rpc('historico_manifestacao', { p_manifestacao_id: id }),
     supabase.from('pedidos_reabertura').select('id, recebido_em, texto').eq('manifestacao_id', id).is('aceito', null),
@@ -67,7 +67,7 @@ const { data, refresh, error } = await useAsyncData(`manifestacao-${id}`, async 
   const ciclo = todos.at(-1)!
   const [{ data: feriados }, { data: complementacao }] = await Promise.all([
     supabase.from('feriados').select('data').gt('data', ciclo.dia_zero).lte('data', somarDias(ciclo.dia_zero, 40)),
-    supabase.from('complementacoes').select('id, origem, pedido_em, limite').eq('ciclo_id', ciclo.id)
+    supabase.from('complementacoes').select('id, origem, pedido_em, limite, texto').eq('ciclo_id', ciclo.id)
       .is('complementado_em', null).eq('arquivada_por_falta', false).maybeSingle(),
   ])
 
@@ -77,7 +77,7 @@ const { data, refresh, error } = await useAsyncData(`manifestacao-${id}`, async 
     ciclos: todos,
     complementacao: complementacao as Complementacao | null,
     pedidoPendente: ((pedidos.data ?? []) as PedidoReabertura[])[0] ?? null,
-    encaminhamento: enc.data as Encaminhamento | null,
+    encaminhamentos: (enc.data ?? []) as Encaminhamento[],
     diasRestantes: (painel.data as { dias_restantes: number | null } | null)?.dias_restantes ?? null,
     historico: (historico.data ?? []) as EventoHistorico[],
     feriados: ((feriados ?? []) as { data: string }[]).map(f => f.data),
@@ -137,22 +137,22 @@ async function executar(trabalho: () => PromiseLike<{ error: unknown }>, mensage
   await refresh()
 }
 
-// Encaminhar (RN14 / RN16)
-const enc = reactive({ diretoria_id: null as number | null, avaliador_id: null as number | null, enviado_em: hojeBrasilia() })
-const avaliadoresDaDiretoria = computed(() => (listas.value?.avaliadores ?? []).filter(a => a.diretoria_id === enc.diretoria_id))
-watch(() => enc.diretoria_id, () => {
-  enc.avaliador_id = avaliadoresDaDiretoria.value.length === 1 ? avaliadoresDaDiretoria.value[0]!.id : null
+// Encaminhar (RN14 / RN16): um ou mais avaliadores, de qualquer diretoria, no mesmo envio.
+const enc = reactive({ avaliadores: [] as number[], enviado_em: hojeBrasilia() })
+const avaliadoresPorDiretoria = computed(() => (listas.value?.diretorias ?? [])
+  .map(d => ({ id: d.id, nome: nomeExibicao(d.nome), avaliadores: opcoes((listas.value?.avaliadores ?? []).filter(a => a.diretoria_id === d.id)) }))
+  .filter(d => d.avaliadores.length))
+watch(acao, (a) => {
+  if (a === 'encaminhar') enc.avaliadores = (data.value?.encaminhamentos ?? []).map(e => e.avaliador_id)
 })
 function encaminhar() {
-  if (!enc.diretoria_id || !enc.avaliador_id || !enc.enviado_em) {
-    falha.value = 'Escolha a diretoria, o avaliador e a data do envio.'
+  if (!enc.avaliadores.length || !enc.enviado_em) {
+    falha.value = 'Escolha ao menos um avaliador e a data do envio.'
     return
   }
   return executar(
-    () => supabase.from('encaminhamentos').insert({
-      manifestacao_id: id, diretoria_id: enc.diretoria_id!, avaliador_id: enc.avaliador_id!, enviado_em: enc.enviado_em,
-    }),
-    data.value?.encaminhamento ? 'Reencaminhamento registrado. O prazo não muda (RN16).' : 'Encaminhamento registrado.',
+    () => supabase.rpc('encaminhar', { p_manifestacao_id: id, p_enviado_em: enc.enviado_em, p_avaliadores: enc.avaliadores }),
+    data.value?.encaminhamentos.length ? 'Reencaminhamento registrado. O prazo não muda (RN16).' : 'Encaminhamento registrado.',
   )
 }
 
@@ -231,10 +231,14 @@ function prorrogar() {
 }
 
 // Complementação (RN10 / RN11)
-const pedidoComp = reactive({ origem: 'ouvidoria' as 'ouvidoria' | 'diretoria', pedido_em: hoje })
+const pedidoComp = reactive({ origem: 'ouvidoria' as 'ouvidoria' | 'diretoria', pedido_em: hoje, texto: '' })
 function pedirComplementacao() {
+  if (!pedidoComp.pedido_em || !pedidoComp.texto.trim()) {
+    falha.value = 'Informe a data e o pedido enviado ao manifestante.'
+    return
+  }
   return executar(() => supabase.rpc('pedir_complementacao', {
-    p_manifestacao_id: id, p_origem: pedidoComp.origem, p_pedido_em: pedidoComp.pedido_em,
+    p_manifestacao_id: id, p_origem: pedidoComp.origem, p_pedido_em: pedidoComp.pedido_em, p_texto: pedidoComp.texto,
   }), 'Pedido de complementação registrado. O prazo está suspenso.')
 }
 const complementadoEm = ref(agoraCampoDataHora())
@@ -276,13 +280,15 @@ const endereco = computed(() => {
   return [rua, m.value.bairro && nomeExibicao(m.value.bairro.nome)].filter(Boolean).join(' · ')
 })
 
+// Encaminhamento vigente agrupado por diretoria.
 const encaminhadoA = computed(() => {
-  const e = data.value?.encaminhamento
-  if (!e) return null
+  const lista = data.value?.encaminhamentos ?? []
+  if (!lista.length) return null
+  const diretorias = new Map<number, string[]>()
+  for (const e of lista) diretorias.set(e.diretoria_id, [...(diretorias.get(e.diretoria_id) ?? []), nomeExibicao(nomePorId(listas.value?.avaliadores, e.avaliador_id))])
   return {
-    diretoria: nomeExibicao(nomePorId(listas.value?.diretorias, e.diretoria_id)),
-    avaliador: nomeExibicao(nomePorId(listas.value?.avaliadores, e.avaliador_id)),
-    enviado_em: e.enviado_em,
+    diretorias: [...diretorias].map(([d, avaliadores]) => ({ id: d, nome: nomeExibicao(nomePorId(listas.value?.diretorias, d)), avaliadores: avaliadores.filter(Boolean) })),
+    enviado_em: lista[0]!.enviado_em,
   }
 })
 
@@ -330,7 +336,10 @@ const opcoes = (lista: { id: number, nome: string }[] | undefined) => (lista ?? 
           <div class="col-span-2 grid min-w-0 gap-[3px]">
             <dt class="rotulo-caps">Encaminhamento</dt>
             <dd class="text-[0.84rem] font-medium">
-              <template v-if="encaminhadoA">{{ encaminhadoA.diretoria }} · {{ encaminhadoA.avaliador }} <span class="font-mono text-[0.76rem] text-neutral-500">({{ formatarData(encaminhadoA.enviado_em, true) }})</span></template>
+              <template v-if="encaminhadoA">
+                <span v-for="d in encaminhadoA.diretorias" :key="d.id" class="block">{{ d.nome }} · {{ d.avaliadores.join(', ') }}</span>
+                <span class="font-mono text-[0.76rem] text-neutral-500">envio em {{ formatarData(encaminhadoA.enviado_em, true) }}</span>
+              </template>
               <span v-else class="text-neutral-500">Não encaminhada</span>
             </dd>
           </div>
@@ -388,6 +397,7 @@ const opcoes = (lista: { id: number, nome: string }[] | undefined) => (lista ?? 
         <AvisoCaixa v-if="suspensa && data.complementacao" titulo="Aguardando complementação" tipo="info">
           Pedida {{ data.complementacao.origem === 'ouvidoria' ? 'pela Ouvidoria' : 'pela diretoria' }} em {{ formatarData(data.complementacao.pedido_em, true) }}.
           Sem resposta até {{ formatarData(data.complementacao.limite, true) }}, ela é arquivada por insuficiência de dados (RN11).
+          <span v-if="data.complementacao.texto" class="mt-1.5 block whitespace-pre-line">Pedido: {{ data.complementacao.texto }}</span>
         </AvisoCaixa>
         <AvisoCaixa v-if="data.pedidoPendente && !acao" titulo="Pedido de reabertura aguardando decisão" tipo="atencao">
           Recebido em {{ formatarDataHora(data.pedidoPendente.recebido_em) }}.
@@ -464,6 +474,9 @@ const opcoes = (lista: { id: number, nome: string }[] | undefined) => (lista ?? 
           <CampoForm rotulo="Data do pedido" obrigatorio>
             <input v-model="pedidoComp.pedido_em" type="date" class="campo font-mono" :min="data.ciclo.dia_zero" :max="hoje">
           </CampoForm>
+          <CampoForm rotulo="Pedido enviado ao manifestante" obrigatorio>
+            <textarea v-model="pedidoComp.texto" class="campo min-h-[90px] leading-[1.45]" rows="4" />
+          </CampoForm>
           <AvisoCaixa v-if="falha" titulo="Não foi salvo" tipo="erro">{{ falha }}</AvisoCaixa>
           <div class="flex justify-end gap-2">
             <button type="button" class="btn btn-fantasma btn-pequeno" @click="abrir(null)">Cancelar</button>
@@ -531,20 +544,19 @@ const opcoes = (lista: { id: number, nome: string }[] | undefined) => (lista ?? 
         <form v-else-if="acao === 'encaminhar'" class="cartao grid gap-3 p-4" @submit.prevent="encaminhar">
           <b class="cartao-titulo">{{ encaminhadoA ? 'Reencaminhar' : 'Encaminhar' }}</b>
           <p class="text-[0.76rem] text-neutral-500">A tramitação acontece no MG-OUV; aqui fica o registro (RN14).{{ encaminhadoA ? ' O prazo não reinicia (RN16).' : '' }}</p>
-          <CampoForm rotulo="Diretoria" obrigatorio>
-            <select v-model="enc.diretoria_id" class="campo">
-              <option :value="null" disabled>Escolha</option>
-              <option v-for="d in opcoes(listas?.diretorias)" :key="d.id" :value="d.id">{{ d.nome }}</option>
-            </select>
+          <CampoForm :rotulo="`Avaliadores${enc.avaliadores.length ? ` (${enc.avaliadores.length})` : ''}`" obrigatorio grupo>
+            <div class="grid max-h-[300px] gap-2.5 overflow-y-auto rounded-control border border-neutral-200 bg-white p-2.5">
+              <fieldset v-for="d in avaliadoresPorDiretoria" :key="d.id" class="grid gap-1">
+                <legend class="rotulo-caps mb-1">{{ d.nome }}</legend>
+                <label v-for="a in d.avaliadores" :key="a.id" class="flex cursor-pointer items-center gap-2 text-[0.84rem] text-neutral-800">
+                  <input v-model="enc.avaliadores" type="checkbox" :value="a.id" class="h-4 w-4 accent-primary-700">{{ a.nome }}
+                </label>
+              </fieldset>
+              <p v-if="!avaliadoresPorDiretoria.length" class="text-[0.8rem] text-neutral-500">Nenhum avaliador cadastrado.</p>
+            </div>
           </CampoForm>
-          <CampoForm rotulo="Avaliador" obrigatorio>
-            <select v-model="enc.avaliador_id" class="campo" :disabled="!avaliadoresDaDiretoria.length">
-              <option :value="null" disabled>{{ enc.diretoria_id && !avaliadoresDaDiretoria.length ? 'Nenhum avaliador cadastrado' : 'Escolha' }}</option>
-              <option v-for="a in opcoes(avaliadoresDaDiretoria)" :key="a.id" :value="a.id">{{ a.nome }}</option>
-            </select>
-          </CampoForm>
-          <p v-if="enc.diretoria_id && !avaliadoresDaDiretoria.length" class="text-[0.74rem] text-warning">
-            Cadastre o avaliador desta diretoria em <NuxtLink to="/cadastros?aba=diretorias" class="font-semibold underline">Cadastros</NuxtLink>.
+          <p class="text-[0.74rem] text-neutral-500">
+            Pode marcar avaliadores de diretorias diferentes. Falta alguém? Cadastre em <NuxtLink to="/cadastros?aba=diretorias" class="font-semibold underline">Cadastros</NuxtLink>.
           </p>
           <CampoForm rotulo="Data do envio no MG-OUV" obrigatorio>
             <input v-model="enc.enviado_em" type="date" class="campo font-mono" :max="hojeBrasilia()">

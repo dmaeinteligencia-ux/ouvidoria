@@ -25,8 +25,8 @@ interface Linha {
   prazo: string
   respondido_em: string | null
   dias_restantes: number | null
-  diretoria: string | null
-  avaliador: string | null
+  diretorias: string[] | null
+  avaliadores: string[] | null
 }
 
 // Filtros ficam na URL, para o link poder ser compartilhado e o "voltar" do navegador funcionar.
@@ -91,7 +91,7 @@ const opcoesMes = computed(() => {
 const { data: resultado, pending, error } = await useAsyncData('lista-manifestacoes', async () => {
   let q = supabase
     .from('painel_manifestacoes')
-    .select('id, numero, protocolo_mgouv, protocolo_falabr, situacao, arquivada, assunto, canal, logradouro, numero_imovel, bairro, prazo, respondido_em, dias_restantes, diretoria, avaliador', { count: 'exact' })
+    .select('id, numero, protocolo_mgouv, protocolo_falabr, situacao, arquivada, assunto, canal, logradouro, numero_imovel, bairro, prazo, respondido_em, dias_restantes, diretorias, avaliadores', { count: 'exact' })
 
   if (situacao.value === 'abertas') q = q.in('situacao', ABERTAS)
   else if (situacao.value === 'respondidas') q = q.eq('situacao', 'respondida')
@@ -103,7 +103,7 @@ const { data: resultado, pending, error } = await useAsyncData('lista-manifestac
   else if (prazo.value === 'ate2') q = q.gte('dias_restantes', 0).lte('dias_restantes', 2)
   else if (prazo.value === 'noprazo') q = q.gt('dias_restantes', 2)
 
-  if (diretoria.value) q = q.eq('diretoria_id', Number(diretoria.value))
+  if (diretoria.value) q = q.contains('diretoria_ids', [Number(diretoria.value)])
   if (assunto.value) q = q.eq('assunto_id', Number(assunto.value))
   if (canal.value) q = q.eq('canal_id', Number(canal.value))
   if (mes.value) {
@@ -224,9 +224,9 @@ function local(l: Linha) {
               </td>
               <td class="text-neutral-700">{{ l.canal }}</td>
               <td>
-                <template v-if="l.diretoria">
-                  {{ nomeDiretoriaCurto(l.diretoria) }}
-                  <div class="text-[0.76rem] text-neutral-500">{{ nomeExibicao(l.avaliador) }}</div>
+                <template v-if="l.diretorias">
+                  {{ l.diretorias.map(nomeDiretoriaCurto).join(', ') }}
+                  <div class="text-[0.76rem] text-neutral-500">{{ (l.avaliadores ?? []).map(a => nomeExibicao(a)).join(', ') }}</div>
                 </template>
                 <span v-else class="text-[0.76rem] text-neutral-500">Não encaminhada</span>
               </td>

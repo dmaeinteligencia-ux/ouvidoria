@@ -98,7 +98,7 @@ begin
   assert falhou, 'prorrogação depois do vencimento é recusada';
 
   -- RN10: complementação suspende e recomeça a contagem com novo dia 0
-  perform public.pedir_complementacao(m, 'diretoria', '2025-09-17');
+  perform public.pedir_complementacao(m, 'diretoria', '2025-09-17', 'Informe o número do hidrômetro.');
   assert (select situacao from public.manifestacoes where id = m) = 'aguardando_complementacao', 'aguardando complementação';
   assert (select dias_restantes from public.painel_manifestacoes where id = m) is null, 'prazo suspenso';
   falhou := false;
@@ -116,7 +116,7 @@ begin
 
   -- RN11: complementação depois de 10 dias corridos é recusada
   m := pg_temp.nova('2025091500103', '2025-09-15 10:00-03');
-  perform public.pedir_complementacao(m, 'ouvidoria', '2025-09-15');
+  perform public.pedir_complementacao(m, 'ouvidoria', '2025-09-15', 'Envie uma foto do local.');
   perform set_config('teste.hoje', '2025-09-26', false);
   falhou := false;
   begin
