@@ -42,3 +42,12 @@
   /* Faixa institucional azul, branca e verde */
   .faixa-marca { @apply h-1.5; background: linear-gradient(90deg, theme('colors.primary.700') 0 62%, #fff 62% 64%, theme('colors.brand.green') 64% 100%); }
 }
+
+@layer components {
+  .campo-com-erro .campo { @apply border-danger focus:shadow-[0_0_0_3px_theme(colors.danger.soft)]; }
+}
+
+@layer components {
+  /* Mesma altura para campos de texto e listas */
+  input.campo, select.campo { @apply h-[42px] py-0; }
+}

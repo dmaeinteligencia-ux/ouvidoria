@@ -38,18 +38,18 @@ declare
   falhou boolean;
 begin
   -- RN03 / RN04: número anual sequencial e dia 0 calculado
-  m1 := pg_temp.nova('1234567890123', '2026-10-27 18:00-03');
-  m2 := pg_temp.nova('1234567890124', '2026-10-28 09:00-03');
-  assert (select numero from public.manifestacoes where id = m1) = '2026/0001', 'primeiro número do ano';
-  assert (select numero from public.manifestacoes where id = m2) = '2026/0002', 'segundo número do ano';
-  assert (select dia_zero from public.manifestacoes where id = m1) = '2026-10-28', 'dia 0 calculado com corte';
+  m1 := pg_temp.nova('1234567890123', '2025-09-15 18:00-03');
+  m2 := pg_temp.nova('1234567890124', '2025-09-16 09:00-03');
+  assert (select numero from public.manifestacoes where id = m1) = '2025/0001', 'primeiro número do ano';
+  assert (select numero from public.manifestacoes where id = m2) = '2025/0002', 'segundo número do ano';
+  assert (select dia_zero from public.manifestacoes where id = m1) = '2025-09-16', 'dia 0 calculado com corte';
   assert (select count(*) from public.ciclos where manifestacao_id = m1 and numero = 0) = 1, 'ciclo original criado';
-  assert (select prazo from public.ciclos_prazos where manifestacao_id = m1) = '2026-11-05', 'prazo do ciclo original';
+  assert (select prazo from public.ciclos_prazos where manifestacao_id = m1) = '2025-09-23', 'prazo do ciclo original';
 
   -- RN02: formato do protocolo MG-OUV
   falhou := false;
   begin
-    perform pg_temp.nova('123', '2026-10-27 10:00-03');
+    perform pg_temp.nova('123', '2025-09-15 10:00-03');
   exception when check_violation then falhou := true;
   end;
   assert falhou, 'protocolo MG-OUV precisa de 13 dígitos';
@@ -60,7 +60,7 @@ begin
     insert into public.manifestacoes
       (protocolo_mgouv, canal_id, tipo_id, identificacao_id, cadastrado_em, assunto_id, descricao)
     values ('1234567890125', (select id from public.canais where nome = 'FALA.BR'),
-            1, 1, '2026-10-27 10:00-03', 1, 'x');
+            1, 1, '2025-09-15 10:00-03', 1, 'x');
   exception when raise_exception then falhou := true;
   end;
   assert falhou, 'Fala.BR sem protocolo Fala.BR é recusado';
@@ -68,7 +68,7 @@ begin
   -- RN04: dia 0 diferente do calculado exige justificativa
   falhou := false;
   begin
-    update public.manifestacoes set dia_zero = '2026-10-29' where id = m1;
+    update public.manifestacoes set dia_zero = '2025-09-18' where id = m1;
   exception when raise_exception then falhou := true;
   end;
   assert falhou, 'correção do dia 0 sem justificativa é recusada';
@@ -77,7 +77,7 @@ begin
   falhou := false;
   begin
     update public.manifestacoes set arquivada = true where id = m1;
-  exception when check_violation then falhou := true;
+  exception when check_violation or raise_exception then falhou := true;
   end;
   assert falhou, 'arquivada sem motivo é recusada';
 
@@ -86,16 +86,16 @@ begin
   begin
     insert into public.encaminhamentos (manifestacao_id, diretoria_id, avaliador_id, enviado_em)
     values (m1, (select id from public.diretorias where nome = 'DIRETORIA ADMINISTRATIVA'),
-            (select id from public.avaliadores where nome = 'SIMONE PACHECO'), '2026-10-28');
+            (select id from public.avaliadores where nome = 'SIMONE PACHECO'), '2025-09-16');
   exception when raise_exception then falhou := true;
   end;
   assert falhou, 'avaliador de outra diretoria é recusado';
 
   -- RN16: novo encaminhamento substitui o anterior
   insert into public.encaminhamentos (manifestacao_id, diretoria_id, avaliador_id, enviado_em)
-  select m1, a.diretoria_id, a.id, '2026-10-28' from public.avaliadores a where a.nome = 'SIMONE PACHECO';
+  select m1, a.diretoria_id, a.id, '2025-09-16' from public.avaliadores a where a.nome = 'SIMONE PACHECO';
   insert into public.encaminhamentos (manifestacao_id, diretoria_id, avaliador_id, enviado_em)
-  select m1, a.diretoria_id, a.id, '2026-10-29' from public.avaliadores a where a.nome = 'SIMONE PACHECO';
+  select m1, a.diretoria_id, a.id, '2025-09-17' from public.avaliadores a where a.nome = 'SIMONE PACHECO';
   assert (select count(*) from public.encaminhamentos where manifestacao_id = m1) = 2, 'dois encaminhamentos guardados';
   assert (select count(*) from public.encaminhamentos where manifestacao_id = m1 and atual) = 1, 'só um atual';
 

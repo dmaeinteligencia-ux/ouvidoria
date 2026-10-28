@@ -17,8 +17,7 @@ export default defineNuxtConfig({
     },
   },
   supabase: {
-    // Gerar com `supabase gen types typescript` quando o projeto Supabase existir.
-    types: false,
+    types: '~/types/database.types.ts',
     redirectOptions: {
       login: '/login',
       callback: '/confirmar',
