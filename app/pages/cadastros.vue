@@ -8,6 +8,7 @@ const abas = [
   { id: 'assuntos', nome: 'Assuntos' },
   { id: 'canais', nome: 'Canais' },
   { id: 'motivos_arquivamento', nome: 'Motivos de arquivamento' },
+  { id: 'bairros', nome: 'Bairros' },
   { id: 'feriados', nome: 'Feriados' },
 ] as const
 
@@ -28,13 +29,14 @@ const tiposFeriado: Record<string, string> = {
   ponto_facultativo: 'Ponto facultativo',
 }
 
-interface Linha { colunas: string[], avaliadores?: { id: number, nome: string }[] }
+interface Linha { colunas: string[], avaliadores?: { id: number, nome: string }[], bairro?: PosicaoBairro }
 
 const cabecalhos: Record<Aba, string[]> = {
   diretorias: ['Diretoria', 'Avaliadores'],
   assuntos: ['Assunto'],
   canais: ['Canal', 'Nome no painel'],
   motivos_arquivamento: ['Motivo'],
+  bairros: ['Bairro', 'Posição no mapa'],
   feriados: ['Data', 'Descrição', 'Tipo'],
 }
 
@@ -53,6 +55,14 @@ const { data: linhas, pending } = await useAsyncData('cadastro', async (): Promi
       const { data, error } = await supabase.from('canais').select('nome, nome_painel').order('nome')
       if (error) throw error
       return (data as { nome: string, nome_painel: string }[]).map(c => ({ colunas: [nomeExibicao(c.nome), c.nome_painel] }))
+    }
+    case 'bairros': {
+      const { data, error } = await supabase.from('bairros').select('id, nome, latitude, longitude').order('nome')
+      if (error) throw error
+      return (data as PosicaoBairro[]).map(b => ({
+        colunas: [nomeExibicao(b.nome), b.latitude == null ? 'Sem posição' : 'Marcada'],
+        bairro: b,
+      }))
     }
     case 'feriados': {
       const { data, error } = await supabase.from('feriados').select('data, descricao, tipo')
@@ -110,6 +120,28 @@ async function adicionarAvaliador() {
   await depoisDeAlterar(`${nomeExibicao(nome)} cadastrado em ${diretoria}.`)
 }
 
+// Posição do bairro no mapa do Painel Gerencial, marcada pelo administrador.
+const editando = ref<PosicaoBairro | null>(null)
+const bairrosMarcados = computed(() => (linhas.value ?? []).flatMap(l => (l.bairro?.latitude != null ? [l.bairro] : [])))
+watch(aba, () => { editando.value = null })
+
+async function salvarPosicao(posicao: { latitude: number, longitude: number } | null) {
+  const b = editando.value
+  if (!b) return
+  mensagem.value = null
+  salvando.value = true
+  const { error } = await supabase.from('bairros')
+    .update({ latitude: posicao?.latitude ?? null, longitude: posicao?.longitude ?? null }).eq('id', b.id)
+  salvando.value = false
+  if (error) {
+    mensagem.value = { tipo: 'erro', texto: mensagemErro(error) }
+    return
+  }
+  editando.value = null
+  await depoisDeAlterar(posicao ? `Posição de ${nomeExibicao(b.nome)} salva.` : `Posição de ${nomeExibicao(b.nome)} removida.`)
+  await refreshNuxtData('posicoes-bairros')
+}
+
 async function desativarAvaliador(a: { id: number, nome: string }) {
   if (!confirm(`Desativar ${a.nome}? Ele deixa de aparecer nos encaminhamentos; o histórico continua.`)) return
   const { error } = await supabase.from('avaliadores').update({ ativo: false }).eq('id', a.id)
@@ -148,7 +180,19 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
       </CampoForm>
       <button class="btn btn-primario" :disabled="salvando">Adicionar avaliador</button>
     </form>
-    <AvisoCaixa v-if="mensagem && aba === 'diretorias'" class="mx-3.5 mt-3" :titulo="mensagem.texto" :tipo="mensagem.tipo" />
+    <p v-if="aba === 'bairros'" class="border-b border-neutral-100 px-3.5 py-2.5 text-[0.8rem] text-neutral-600">
+      Cada bairro marcado aparece como uma bolha no mapa do Painel Gerencial. Os bairros novos entram pelo cadastro das manifestações.
+    </p>
+    <MapaPosicao
+      v-if="aba === 'bairros' && editando"
+      :key="editando.id"
+      :bairro="editando"
+      :outros="bairrosMarcados"
+      :salvando="salvando"
+      @salvar="salvarPosicao"
+      @cancelar="editando = null"
+    />
+    <AvisoCaixa v-if="mensagem && (aba === 'diretorias' || aba === 'bairros')" class="mx-3.5 mt-3" :titulo="mensagem.texto" :tipo="mensagem.tipo" />
     <p v-if="pending" class="px-4 py-6 text-[0.84rem] text-neutral-500">Carregando…</p>
     <table v-else class="lista">
       <thead>
@@ -165,6 +209,22 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
                   {{ a.nome }}
                   <button v-if="ehAdmin" class="grid h-4 w-4 place-items-center rounded-full text-neutral-400 hover:bg-danger-soft hover:text-danger" :aria-label="`Desativar ${a.nome}`" @click="desativarAvaliador(a)">×</button>
                 </span>
+              </span>
+            </td>
+          </template>
+          <template v-else-if="aba === 'bairros' && linha.bairro">
+            <td class="font-semibold text-neutral-900">{{ linha.colunas[0] }}</td>
+            <td>
+              <span class="flex flex-wrap items-center gap-3">
+                <span :class="linha.bairro.latitude == null ? 'text-warning' : 'text-neutral-600'">{{ linha.colunas[1] }}</span>
+                <button
+                  v-if="ehAdmin"
+                  type="button"
+                  class="text-[0.78rem] font-semibold text-primary-700 hover:underline"
+                  @click="editando = linha.bairro"
+                >
+                  {{ linha.bairro.latitude == null ? 'Marcar no mapa' : 'Ajustar' }}
+                </button>
               </span>
             </td>
           </template>
@@ -189,6 +249,7 @@ async function desativarAvaliador(a: { id: number, nome: string }) {
     <div class="flex justify-between border-t border-neutral-100 px-3.5 py-2.5 text-[0.76rem] text-neutral-500">
       <span>{{ linhas?.length ?? 0 }} registros</span>
       <span v-if="aba === 'feriados'">Ano atual e seguintes</span>
+      <span v-if="aba === 'bairros'">{{ bairrosMarcados.length }} com posição</span>
     </div>
   </section>
 </template>

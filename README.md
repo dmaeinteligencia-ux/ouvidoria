@@ -30,6 +30,7 @@ As migrações ficam em `supabase/migrations` e são aplicadas em ordem:
 | `..._nucleo_manifestacoes.sql` | Ações `registrar_resposta` e `arquivar_manifestacao`, trava de situação (RN24), correção do dia 0, aviso de duplicidade e histórico legível |
 | `..._ciclos.sql` | Prorrogação (RN08), complementação com suspensão e arquivamento automático (RN10, RN11), reabertura em 30 dias (RN20 a RN22) e rotina horária `atualizar_situacoes` no pg_cron que marca Vencida (RN13) |
 | `..._indicadores.sql` | Painel Geral (`painel_geral`, público, só números agregados), Painel Gerencial (`painel_gerencial`: Ouvidoria vê tudo, diretor só a própria diretoria) e `extrato_mensal` nas 35 colunas da planilha |
+| `..._posicao_bairros.sql` | Latitude e longitude de cada bairro (marcadas pelo administrador em Cadastros › Bairros) para o mapa de bolhas do Painel Gerencial; o mapa usa o OpenStreetMap, sem chave |
 
 Depois de uma migração, atualize `app/types/database.types.ts` (tipos gerados pelo Supabase).
 

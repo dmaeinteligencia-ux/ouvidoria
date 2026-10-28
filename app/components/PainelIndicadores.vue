@@ -96,11 +96,11 @@ const nomeAgrupar = computed(() => ({ day: 'por dia', month: 'por mês', year: '
     </div>
 
     <section v-if="gerencial" class="cartao">
-      <div class="cartao-topo"><b class="cartao-titulo">Mapa de calor por bairro</b></div>
-      <p class="px-4 py-5 text-[0.82rem] text-neutral-500">
-        O mapa entra quando o contorno dos bairros de Uberlândia (GeoJSON, KML ou shapefile) for enviado.
-        Até lá, a quantidade por bairro está em "Principais bairros".
-      </p>
+      <div class="cartao-topo">
+        <b class="cartao-titulo">Manifestações por bairro</b>
+        <span class="cartao-nota">tamanho da bolha pela quantidade</span>
+      </div>
+      <MapaBairros :itens="dados.bairros ?? []" :total="dados.total" />
     </section>
 
     <div class="grid gap-3 lg:grid-cols-2">

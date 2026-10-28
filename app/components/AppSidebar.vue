@@ -33,6 +33,7 @@ const grupos = computed<{ titulo?: string, itens: Item[] }[]>(() => {
       titulo: 'Cadastros',
       itens: [
         { rotulo: 'Assuntos', para: '/cadastros?aba=assuntos' },
+        { rotulo: 'Bairros', para: '/cadastros?aba=bairros' },
         { rotulo: 'Diretorias e avaliadores', para: '/cadastros?aba=diretorias' },
         { rotulo: 'Feriados', para: '/cadastros?aba=feriados' },
       ],

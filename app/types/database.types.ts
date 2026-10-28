@@ -34,7 +34,12 @@ export type Database = {
   public: {
     Tables: {
       assuntos: Lista
-      bairros: Lista
+      bairros: {
+        Row: Lista['Row'] & { latitude: number | null, longitude: number | null }
+        Insert: Lista['Insert'] & { latitude?: number | null, longitude?: number | null }
+        Update: Lista['Update'] & { latitude?: number | null, longitude?: number | null }
+        Relationships: []
+      }
       diretorias: Lista
       identificacoes: Lista
       motivos_arquivamento: Lista
