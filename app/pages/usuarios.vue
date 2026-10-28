@@ -61,6 +61,7 @@ async function chamar<T>(trabalho: () => Promise<T>): Promise<T | null> {
 
 // Novo usuário
 const novo = reactive({ nome: '', email: '', perfil: 'ouvidoria' as Perfil, diretoria_id: null as number | null })
+const perfilNovo = computed(() => PERFIS.find(p => p.valor === novo.perfil))
 async function cadastrar() {
   const nome = novo.nome.trim()
   const r = await chamar(() => $fetch<{ email: string, link: string }>('/api/usuarios', { method: 'POST', body: novo }))
@@ -125,25 +126,32 @@ const ativos = computed(() => (usuarios.value ?? []).filter(u => u.ativo).length
 
     <section class="cartao">
       <div class="cartao-topo"><b class="cartao-titulo">Novo usuário</b></div>
-      <form class="flex flex-wrap items-end gap-3 px-3.5 py-3" @submit.prevent="cadastrar">
-        <CampoForm rotulo="Nome" obrigatorio class="w-[240px]">
-          <input v-model="novo.nome" class="campo" autocomplete="off">
-        </CampoForm>
-        <CampoForm rotulo="E-mail" obrigatorio class="w-[260px]">
-          <input v-model="novo.email" type="email" class="campo" autocomplete="off" placeholder="nome@dmae.mg.gov.br">
-        </CampoForm>
-        <CampoForm rotulo="Perfil" obrigatorio :dica="PERFIS.find(p => p.valor === novo.perfil)?.ajuda">
-          <select v-model="novo.perfil" class="campo">
-            <option v-for="p in PERFIS" :key="p.valor" :value="p.valor">{{ p.nome }}</option>
-          </select>
-        </CampoForm>
-        <CampoForm v-if="novo.perfil === 'diretor'" rotulo="Diretoria" obrigatorio class="min-w-[260px] flex-1">
-          <select v-model="novo.diretoria_id" class="campo">
-            <option :value="null" disabled>Escolha</option>
-            <option v-for="d in listas?.diretorias" :key="d.id" :value="d.id">{{ nomeExibicao(d.nome) }}</option>
-          </select>
-        </CampoForm>
-        <button class="btn btn-primario" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Cadastrar e gerar convite' }}</button>
+      <form class="px-3.5 py-3" @submit.prevent="cadastrar">
+        <div class="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <CampoForm rotulo="Nome" obrigatorio>
+            <input v-model="novo.nome" class="campo" autocomplete="off">
+          </CampoForm>
+          <CampoForm rotulo="E-mail" obrigatorio>
+            <input v-model="novo.email" type="email" class="campo" autocomplete="off" placeholder="nome@dmae.mg.gov.br">
+          </CampoForm>
+          <CampoForm rotulo="Perfil" obrigatorio>
+            <select v-model="novo.perfil" class="campo">
+              <option v-for="p in PERFIS" :key="p.valor" :value="p.valor">{{ p.nome }}</option>
+            </select>
+          </CampoForm>
+          <CampoForm v-if="novo.perfil === 'diretor'" rotulo="Diretoria" obrigatorio>
+            <select v-model="novo.diretoria_id" class="campo">
+              <option :value="null" disabled>Escolha</option>
+              <option v-for="d in listas?.diretorias" :key="d.id" :value="d.id">{{ nomeExibicao(d.nome) }}</option>
+            </select>
+          </CampoForm>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-3">
+          <p class="text-[0.78rem] text-neutral-500">
+            <b class="font-semibold text-neutral-700">{{ perfilNovo?.nome }}:</b> {{ perfilNovo?.ajuda }}
+          </p>
+          <button class="btn btn-primario" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Cadastrar e gerar convite' }}</button>
+        </div>
       </form>
     </section>
 
