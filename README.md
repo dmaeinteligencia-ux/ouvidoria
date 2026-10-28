@@ -25,6 +25,11 @@ As migrações ficam em `supabase/migrations` e são aplicadas em ordem:
 | `..._gatilhos.sql` | Número anual, ciclo original, avaliador × diretoria, histórico |
 | `..._acesso.sql` | Perfis e políticas RLS |
 | `..._cadastros_iniciais.sql` | Listas da aba CAMPOS e feriados de 2023 a 2027 |
+| `..._permissoes_funcoes.sql` | Restringe a execução das funções `security definer` |
+| `..._painel_acompanhamento.sql` | Visão `painel_manifestacoes` (ciclo atual, prazo e dias úteis restantes) |
+| `..._nucleo_manifestacoes.sql` | Ações `registrar_resposta` e `arquivar_manifestacao`, trava de situação (RN24), correção do dia 0, aviso de duplicidade e histórico legível |
+
+Depois de uma migração, atualize `app/types/database.types.ts` (tipos gerados pelo Supabase).
 
 Aplicar no Supabase: `supabase link --project-ref <ref>` e `supabase db push`
 (ou colar os arquivos, em ordem, no SQL Editor).
@@ -35,7 +40,7 @@ Aplicar no Supabase: `supabase link --project-ref <ref>` e `supabase db push`
 DATABASE_URL=postgres://usuario@localhost/banco_de_teste npm run test:db
 ```
 
-O script apaga e recria o schema `public` do banco informado; use um banco descartável.
+O script apaga e recria o schema `public` do banco informado antes de cada arquivo de teste; use um banco descartável.
 
 ### Primeiro administrador
 

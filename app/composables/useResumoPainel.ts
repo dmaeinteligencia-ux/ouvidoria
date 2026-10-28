@@ -22,10 +22,6 @@ export interface CargaDiretoria {
 
 const ABERTAS: Situacao[] = ['em_tratamento', 'aguardando_complementacao', 'prorrogada', 'vencida', 'reaberta']
 
-function hojeBrasilia(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-}
-
 // Números do painel da Ouvidoria, lidos da visão painel_manifestacoes (RLS: só a equipe).
 export function useResumoPainel() {
   const supabase = useSupabaseClient()

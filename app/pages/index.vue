@@ -32,7 +32,7 @@ const maiorCarga = computed(() => Math.max(1, ...(resumo.value?.cargaPorDiretori
     <CabecalhoPagina titulo="Painel" :subtitulo="subtitulo">
       <template #acoes>
         <button class="btn btn-secundario btn-pequeno" disabled title="Disponível na Fase 4">Extrato do mês</button>
-        <button class="btn btn-primario btn-pequeno" disabled title="Disponível na Fase 2">+ Nova manifestação</button>
+        <NuxtLink to="/manifestacoes/nova" class="btn btn-primario btn-pequeno">+ Nova manifestação</NuxtLink>
       </template>
     </CabecalhoPagina>
 
@@ -73,9 +73,9 @@ const maiorCarga = computed(() => Math.max(1, ...(resumo.value?.cargaPorDiretori
         <div class="cartao-topo"><b class="cartao-titulo">Precisam de ação hoje</b><span class="cartao-nota">por prazo</span></div>
         <table v-if="resumo?.urgentes.length" class="lista">
           <tbody>
-            <tr v-for="m in resumo.urgentes" :key="m.id" :class="{ 'bg-[#FFFAF9]': m.dias_restantes! < 0 }">
+            <tr v-for="m in resumo.urgentes" :key="m.id" class="cursor-pointer hover:bg-neutral-25" :class="{ '!bg-[#FFFAF9]': m.dias_restantes! < 0 }" @click="navigateTo(`/manifestacoes/${m.id}`)">
               <td>
-                <div class="numero-interno">{{ m.numero }}</div>
+                <NuxtLink :to="`/manifestacoes/${m.id}`" class="numero-interno hover:underline" @click.stop>{{ m.numero }}</NuxtLink>
                 <div class="font-semibold text-neutral-900">{{ nomeExibicao(m.assunto) }}</div>
               </td>
               <td class="text-right"><PrazoIndicador :dias-restantes="m.dias_restantes" :prazo="m.prazo" /></td>

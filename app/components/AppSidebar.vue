@@ -14,8 +14,8 @@ interface Item {
 const grupos = computed<{ titulo?: string, itens: Item[] }[]>(() => {
   const operacao: Item[] = [
     { rotulo: 'Painel', para: '/' },
-    { rotulo: 'Manifestações', contador: props.contagens?.abertas },
-    { rotulo: 'Vencidas', contador: props.contagens?.vencidas, alerta: true },
+    { rotulo: 'Manifestações', para: '/manifestacoes', contador: props.contagens?.abertas },
+    { rotulo: 'Vencidas', para: '/manifestacoes?prazo=vencidas', contador: props.contagens?.vencidas, alerta: true },
     { rotulo: 'Reaberturas', contador: props.contagens?.reabertas },
   ]
   if (props.perfil === 'diretor') return [{ itens: [{ rotulo: 'Painel', para: '/' }] }]
@@ -33,13 +33,33 @@ const grupos = computed<{ titulo?: string, itens: Item[] }[]>(() => {
   ]
 })
 
-function ativo(item: Item) {
-  if (!item.para) return false
+// Item ativo: mesmo caminho e mesmos parâmetros; vence o que tiver mais parâmetros em comum.
+// Dentro de uma manifestação, "Manifestações" fica ativo.
+const PADROES: Record<string, string> = { aba: 'diretorias' }
+
+function pontos(item: Item): number {
+  if (!item.para) return -1
   const [caminho, busca] = item.para.split('?')
-  if (route.path !== caminho) return false
-  if (!busca) return true
-  const aba = new URLSearchParams(busca).get('aba')
-  return (route.query.aba ?? 'diretorias') === aba
+  const noCaminho = route.path === caminho || (caminho !== '/' && route.path.startsWith(`${caminho}/`))
+  if (!noCaminho) return -1
+  let total = 0
+  for (const [chave, valor] of new URLSearchParams(busca)) {
+    if ((route.query[chave] ?? PADROES[chave]) !== valor) return -1
+    total++
+  }
+  return total
+}
+
+const itemAtivo = computed(() => {
+  let melhor: Item | null = null
+  for (const item of grupos.value.flatMap(g => g.itens)) {
+    if (pontos(item) > (melhor ? pontos(melhor) : -1)) melhor = item
+  }
+  return melhor
+})
+
+function ativo(item: Item) {
+  return itemAtivo.value === item
 }
 </script>
 
@@ -59,6 +79,11 @@ function ativo(item: Item) {
             :class="{ '!bg-primary-50 font-semibold !text-primary-700 shadow-[inset_3px_0_0_theme(colors.primary.700)]': ativo(item) }"
           >
             {{ item.rotulo }}
+            <em
+              v-if="item.contador"
+              class="rounded-full px-1.5 py-[3px] font-mono text-[0.7rem] font-semibold not-italic leading-none"
+              :class="item.alerta ? 'bg-danger-soft text-danger' : 'bg-neutral-100 text-neutral-600'"
+            >{{ item.contador }}</em>
           </NuxtLink>
           <span
             v-else
