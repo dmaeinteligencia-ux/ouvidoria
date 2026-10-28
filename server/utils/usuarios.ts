@@ -24,8 +24,8 @@ export async function exigirAdministrador(event: H3Event) {
   return { id: claims.sub as string, cliente, auth }
 }
 
-// Volta do link do e-mail: /confirmar abre a sessão (tokens no endereço) e segue para `proximo`;
-// o middleware leva quem ainda não escolheu senha para /nova-senha.
+// Endereço do link entregue: /confirmar valida o código quando a pessoa clica em Continuar e segue
+// para `proximo`; o middleware leva quem ainda não escolheu senha para /nova-senha.
 export function enderecoRetorno(event: H3Event, proximo?: string): string {
   const volta = new URL('/confirmar', getRequestURL(event).origin)
   if (proximo) volta.searchParams.set('proximo', proximo)
@@ -33,7 +33,10 @@ export function enderecoRetorno(event: H3Event, proximo?: string): string {
 }
 
 // Sem SMTP próprio, o sistema não manda e-mail: gera o link e o administrador o repassa à pessoa.
-// O link vale pelo tempo de "Email OTP Expiration" do Supabase (padrão 1 hora).
+// O link aponta para /confirmar com o código (token_hash), e não para o /verify do Supabase: a
+// prévia de link do WhatsApp, do Teams e dos filtros de e-mail abre o endereço antes da pessoa e
+// gastaria o código de uso único. O código só é usado no clique em Continuar.
+// Vale pelo tempo de "Email OTP Expiration" do Supabase (padrão 1 hora).
 export async function gerarLink(
   auth: ReturnType<typeof serverSupabaseServiceRole>['auth']['admin'],
   params: { type: 'invite', email: string, data: Record<string, unknown>, redirectTo: string } | { type: 'recovery', email: string, redirectTo: string },
@@ -45,7 +48,10 @@ export async function gerarLink(
     if (/already|registered|exists/i.test(error.message)) falha(409, 'Já existe um usuário com esse e-mail.')
     falha(500, error.message)
   }
-  return { link: data.properties.action_link, userId: data.user.id }
+  const link = new URL(params.redirectTo)
+  link.searchParams.set('codigo', data.properties.hashed_token)
+  link.searchParams.set('tipo', params.type)
+  return { link: link.toString(), userId: data.user.id }
 }
 
 export function falha(statusCode: number, message: string): never {
