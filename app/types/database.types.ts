@@ -410,6 +410,31 @@ export type Database = {
       }
     }
     Functions: {
+      painel_geral: {
+        Args: {
+          p_inicio: string, p_fim: string, p_agrupar?: string,
+          p_situacoes?: Database['public']['Enums']['situacao_manifestacao'][] | null,
+          p_tipos?: number[] | null, p_canais?: number[] | null, p_identificacoes?: number[] | null
+        }
+        Returns: Json
+      }
+      painel_gerencial: {
+        Args: {
+          p_inicio: string, p_fim: string, p_agrupar?: string,
+          p_situacoes?: Database['public']['Enums']['situacao_manifestacao'][] | null,
+          p_tipos?: number[] | null, p_canais?: number[] | null, p_identificacoes?: number[] | null,
+          p_assuntos?: number[] | null, p_bairros?: number[] | null, p_diretorias?: number[] | null
+        }
+        Returns: Json
+      }
+      painel_opcoes: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      extrato_mensal: {
+        Args: { p_ano: number, p_mes: number }
+        Returns: Json
+      }
       arquivar_manifestacao: {
         Args: { p_duplicada_de?: number | null, p_manifestacao_id: number, p_motivo_arquivamento_id: number }
         Returns: undefined

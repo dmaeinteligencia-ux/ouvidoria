@@ -18,10 +18,17 @@ const grupos = computed<{ titulo?: string, itens: Item[] }[]>(() => {
     { rotulo: 'Vencidas', para: '/manifestacoes?prazo=vencidas', contador: props.contagens?.vencidas, alerta: true },
     { rotulo: 'Reaberturas', para: '/manifestacoes?situacao=reaberta', contador: props.contagens?.reabertas },
   ]
-  if (props.perfil === 'diretor') return [{ itens: [{ rotulo: 'Painel', para: '/' }] }]
+  if (props.perfil === 'diretor') return [{ itens: [{ rotulo: 'Painel Gerencial', para: '/indicadores' }] }]
   return [
     { itens: operacao },
-    { titulo: 'Relatórios', itens: [{ rotulo: 'Extrato mensal' }, { rotulo: 'Indicadores' }] },
+    {
+      titulo: 'Relatórios',
+      itens: [
+        { rotulo: 'Extrato mensal', para: '/extrato' },
+        { rotulo: 'Painel Gerencial', para: '/indicadores' },
+        { rotulo: 'Painel Geral', para: '/painel' },
+      ],
+    },
     {
       titulo: 'Cadastros',
       itens: [

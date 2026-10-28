@@ -21,8 +21,15 @@ export default defineNuxtConfig({
     redirectOptions: {
       login: '/login',
       callback: '/confirmar',
-      // O Painel Geral (Fase 4) será público.
+      // O Painel Geral é público.
       exclude: ['/painel', '/nova-senha'],
+    },
+  },
+  runtimeConfig: {
+    public: {
+      // Botões dos painéis (CI nº 6660/2025); sem endereço, o botão não aparece.
+      linkRegistrarManifestacao: '',
+      linkPaginaOuvidoria: '',
     },
   },
   typescript: { strict: true },

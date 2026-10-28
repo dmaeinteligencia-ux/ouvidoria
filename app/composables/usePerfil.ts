@@ -7,16 +7,18 @@ export interface UsuarioSistema {
   diretoria_id: number | null
 }
 
-// Perfil do usuário logado, lido da tabela public.usuarios (RLS: cada um vê o próprio registro).
+// Perfil do usuário logado, lido da tabela public.usuarios. O administrador enxerga todos os
+// usuários (RLS), por isso o filtro pelo id do login.
 export function usePerfil() {
   const supabase = useSupabaseClient()
   const user = useSupabaseUser()
 
   return useAsyncData('perfil', async () => {
-    if (!user.value) return null
+    if (!user.value?.sub) return null
     const { data, error } = await supabase
       .from('usuarios')
       .select('id, nome, perfil, diretoria_id')
+      .eq('id', user.value.sub)
       .eq('ativo', true)
       .maybeSingle()
     if (error) throw error
