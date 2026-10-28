@@ -5,6 +5,7 @@ const RESTRICOES: Record<string, string> = {
   protocolo_mgouv_formato: 'O protocolo MG-OUV deve ter exatamente 13 dígitos.',
   protocolo_falabr_formato: 'O protocolo Fala.BR deve seguir o formato 00000.0000.000000-00.',
   tem_protocolo: 'Informe pelo menos um protocolo (MG-OUV ou Fala.BR).',
+  bairros_nome_key: 'Já existe um bairro com esse nome.',
   cep_formato: 'O CEP deve seguir o formato 00000-000.',
 }
 
