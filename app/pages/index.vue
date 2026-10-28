@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const { data: perfil } = await usePerfil()
+// O diretor só usa o Painel Gerencial da própria diretoria.
+if (perfil.value?.perfil === 'diretor') await navigateTo('/indicadores', { replace: true })
 const { data: resumo } = await useResumoPainel()
 
 const hoje = new Date()
@@ -19,19 +21,10 @@ const maiorCarga = computed(() => Math.max(1, ...(resumo.value?.cargaPorDiretori
     <span>Peça ao administrador para cadastrá-lo.</span>
   </div>
 
-  <template v-else-if="perfil.perfil === 'diretor'">
-    <CabecalhoPagina titulo="Painel Gerencial" :subtitulo="subtitulo" />
-    <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-control border border-primary-200 bg-primary-50 px-3.5 py-3 text-[0.86rem] text-neutral-800">
-      <span class="row-span-2 grid h-5 w-5 place-items-center rounded-full bg-primary-700 text-[0.75rem] font-bold text-white">i</span>
-      <b class="font-semibold">Em construção</b>
-      <span>Os gráficos da sua diretoria chegam na Fase 4, conforme o CI nº 6660/2025.</span>
-    </div>
-  </template>
-
   <template v-else>
     <CabecalhoPagina titulo="Painel" :subtitulo="subtitulo">
       <template #acoes>
-        <button class="btn btn-secundario btn-pequeno" disabled title="Disponível na Fase 4">Extrato do mês</button>
+        <NuxtLink to="/extrato" class="btn btn-secundario btn-pequeno">Extrato do mês</NuxtLink>
         <NuxtLink to="/manifestacoes/nova" class="btn btn-primario btn-pequeno">+ Nova manifestação</NuxtLink>
       </template>
     </CabecalhoPagina>
