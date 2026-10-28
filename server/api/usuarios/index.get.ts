@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
       ...u,
       email: conta?.email ?? null,
       ultimo_acesso: conta?.last_sign_in_at ?? null,
-      // Convite enviado e ainda sem senha escolhida.
+      // Convite gerado e ainda sem senha escolhida.
       convite_pendente: conta?.user_metadata?.trocar_senha === true,
     }
   })

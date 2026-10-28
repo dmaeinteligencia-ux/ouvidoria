@@ -48,13 +48,13 @@ O script apaga e recria o schema `public` do banco informado antes de cada arqui
 
 ### Usuários e convites
 
-O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para avaliador, a diretoria; no banco o perfil se chama `diretor`), edita, desativa e reenvia o convite ou o link de nova senha. O convite chega por e-mail; no link a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
+O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para avaliador, a diretoria; no banco o perfil se chama `diretor`), edita, desativa e gera de novo o link de convite ou de nova senha. O sistema não envia e-mail: gera o link (`auth.admin.generateLink`) e o administrador o repassa por e-mail institucional, Teams ou WhatsApp. No link a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
 
 Configuração necessária:
 
 - **Vercel › Settings › Environment Variables:** `NUXT_SUPABASE_SECRET_KEY` com a chave secreta do projeto (Supabase › Project Settings › API Keys › Secret keys). Ela fica só no servidor (rotas `server/api/usuarios`).
-- **Supabase › Authentication › Emails › SMTP Settings:** servidor de e-mail do DMAE. Sem SMTP próprio, o Supabase só entrega para os e-mails da equipe do projeto e poucos por hora.
 - **Supabase › Authentication › URL Configuration:** Site URL com o endereço do sistema e, em Redirect URLs, `https://<endereço>/**`.
+- Opcional: **Supabase › Authentication › Providers › Email › Email OTP Expiration** até 86400 (24 horas) para o link durar mais que 1 hora.
 
 ### Primeiro administrador
 

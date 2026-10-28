@@ -32,13 +32,20 @@ export function enderecoRetorno(event: H3Event, proximo?: string): string {
   return volta.toString()
 }
 
-// Erros de envio de e-mail do Supabase Auth em linguagem da tela.
-export function erroEmail(mensagem: string): never {
-  if (/already|registered|exists/i.test(mensagem)) falha(409, 'Já existe um usuário com esse e-mail.')
-  if (/not authorized|smtp|sending|rate limit/i.test(mensagem)) {
-    falha(502, 'O Supabase não conseguiu enviar o e-mail. Confira o SMTP do DMAE em Authentication › Emails no Supabase (o envio padrão só entrega para a equipe do projeto e poucos por hora).')
+// Sem SMTP próprio, o sistema não manda e-mail: gera o link e o administrador o repassa à pessoa.
+// O link vale pelo tempo de "Email OTP Expiration" do Supabase (padrão 1 hora).
+export async function gerarLink(
+  auth: ReturnType<typeof serverSupabaseServiceRole>['auth']['admin'],
+  params: { type: 'invite', email: string, data: Record<string, unknown>, redirectTo: string } | { type: 'recovery', email: string, redirectTo: string },
+): Promise<{ link: string, userId: string }> {
+  const { data, error } = params.type === 'invite'
+    ? await auth.generateLink({ type: 'invite', email: params.email, options: { data: params.data, redirectTo: params.redirectTo } })
+    : await auth.generateLink({ type: 'recovery', email: params.email, options: { redirectTo: params.redirectTo } })
+  if (error) {
+    if (/already|registered|exists/i.test(error.message)) falha(409, 'Já existe um usuário com esse e-mail.')
+    falha(500, error.message)
   }
-  falha(500, mensagem)
+  return { link: data.properties.action_link, userId: data.user.id }
 }
 
 export function falha(statusCode: number, message: string): never {

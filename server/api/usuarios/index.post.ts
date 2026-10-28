@@ -1,4 +1,4 @@
-// Cadastra o perfil e manda o convite por e-mail; no link a pessoa escolhe a própria senha.
+// Cadastra o perfil e gera o link de convite; no link a pessoa escolhe a própria senha.
 export default defineEventHandler(async (event) => {
   const { cliente, auth } = await exigirAdministrador(event)
   const corpo = await readBody<{ nome?: string, email?: string, perfil?: string, diretoria_id?: number | null }>(event)
@@ -13,14 +13,13 @@ export default defineEventHandler(async (event) => {
   if (erroLista) falha(500, erroLista.message)
   if (contas.users.some(u => u.email?.toLowerCase() === email)) falha(409, 'Já existe um usuário com esse e-mail.')
 
-  const { data, error } = await auth.inviteUserByEmail(email, {
-    data: { nome, trocar_senha: true }, redirectTo: enderecoRetorno(event),
+  const { link, userId } = await gerarLink(auth, {
+    type: 'invite', email, data: { nome, trocar_senha: true }, redirectTo: enderecoRetorno(event),
   })
-  if (error) erroEmail(error.message)
-  const { error: erroPerfil } = await cliente.from('usuarios').insert({ id: data.user.id, nome, ...perfil })
+  const { error: erroPerfil } = await cliente.from('usuarios').insert({ id: userId, nome, ...perfil })
   if (erroPerfil) {
-    await auth.deleteUser(data.user.id)
+    await auth.deleteUser(userId)
     falha(500, erroPerfil.message)
   }
-  return { id: data.user.id, email }
+  return { id: userId, email, link }
 })

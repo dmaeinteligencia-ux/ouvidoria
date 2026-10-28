@@ -28,6 +28,15 @@ const nomePerfil = (p: Perfil) => PERFIS.find(x => x.valor === p)?.nome ?? p
 
 const mensagem = ref<{ tipo: 'erro' | 'sucesso', texto: string } | null>(null)
 const salvando = ref(false)
+// Link gerado para o administrador repassar (e-mail institucional, Teams, WhatsApp).
+const linkGerado = ref<{ titulo: string, email: string, link: string } | null>(null)
+const copiado = ref(false)
+async function copiarLink() {
+  if (!linkGerado.value) return
+  await navigator.clipboard.writeText(linkGerado.value.link)
+  copiado.value = true
+  setTimeout(() => { copiado.value = false }, 2000)
+}
 
 function erroDe(e: unknown): string {
   const f = e as { data?: { message?: string } } | null
@@ -36,6 +45,7 @@ function erroDe(e: unknown): string {
 
 async function chamar<T>(trabalho: () => Promise<T>): Promise<T | null> {
   mensagem.value = null
+  linkGerado.value = null
   salvando.value = true
   try {
     return await trabalho()
@@ -52,9 +62,10 @@ async function chamar<T>(trabalho: () => Promise<T>): Promise<T | null> {
 // Novo usuário
 const novo = reactive({ nome: '', email: '', perfil: 'ouvidoria' as Perfil, diretoria_id: null as number | null })
 async function cadastrar() {
-  const r = await chamar(() => $fetch<{ email: string }>('/api/usuarios', { method: 'POST', body: novo }))
+  const nome = novo.nome.trim()
+  const r = await chamar(() => $fetch<{ email: string, link: string }>('/api/usuarios', { method: 'POST', body: novo }))
   if (!r) return
-  mensagem.value = { tipo: 'sucesso', texto: `Convite enviado para ${r.email}. A pessoa escolhe a senha pelo link do e-mail.` }
+  linkGerado.value = { titulo: `${nome} cadastrado. Envie o link de convite`, email: r.email, link: r.link }
   Object.assign(novo, { nome: '', email: '', perfil: 'ouvidoria', diretoria_id: null })
   await refresh()
 }
@@ -84,11 +95,11 @@ async function alternarAtivo(u: Usuario) {
   await refresh()
 }
 
-// Convite pendente: reenvia o convite. Já com senha: manda o link para escolher outra.
-async function enviarAcesso(u: Usuario) {
-  const r = await chamar(() => $fetch<{ tipo: 'convite' | 'senha', email: string }>(`/api/usuarios/${u.id}/acesso`, { method: 'POST' }))
+// Convite pendente: novo link de convite. Já com senha: link para escolher outra.
+async function gerarAcesso(u: Usuario) {
+  const r = await chamar(() => $fetch<{ tipo: 'convite' | 'senha', email: string, link: string }>(`/api/usuarios/${u.id}/acesso`, { method: 'POST' }))
   if (!r) return
-  mensagem.value = { tipo: 'sucesso', texto: r.tipo === 'convite' ? `Convite reenviado para ${r.email}.` : `Link de nova senha enviado para ${r.email}.` }
+  linkGerado.value = { titulo: r.tipo === 'convite' ? `Novo link de convite de ${u.nome}` : `Link de nova senha de ${u.nome}`, email: r.email, link: r.link }
 }
 
 const ativos = computed(() => (usuarios.value ?? []).filter(u => u.ativo).length)
@@ -100,6 +111,16 @@ const ativos = computed(() => (usuarios.value ?? []).filter(u => u.ativo).length
   <AvisoCaixa v-if="!ehAdmin" titulo="Acesso restrito" tipo="atencao">Só o administrador gerencia os usuários.</AvisoCaixa>
 
   <template v-else>
+    <AvisoCaixa v-if="linkGerado" :titulo="linkGerado.titulo" tipo="sucesso">
+      <span class="mt-1 flex flex-wrap items-center gap-2">
+        <input :value="linkGerado.link" readonly class="campo min-w-0 flex-1 font-mono text-[0.76rem]" aria-label="Link de acesso" @focus="($event.target as HTMLInputElement).select()">
+        <button type="button" class="btn btn-primario btn-pequeno" @click="copiarLink">{{ copiado ? 'Copiado' : 'Copiar link' }}</button>
+      </span>
+      <span class="mt-1.5 block">
+        Mande para {{ linkGerado.email }} pelo e-mail institucional, Teams ou WhatsApp. Ao abrir, a pessoa escolhe a própria senha.
+        O link vale por pouco tempo (1 hora no padrão do Supabase) e só pode ser usado uma vez; se expirar, gere outro aqui.
+      </span>
+    </AvisoCaixa>
     <AvisoCaixa v-if="mensagem" :titulo="mensagem.texto" :tipo="mensagem.tipo" />
 
     <section class="cartao">
@@ -122,7 +143,7 @@ const ativos = computed(() => (usuarios.value ?? []).filter(u => u.ativo).length
             <option v-for="d in listas?.diretorias" :key="d.id" :value="d.id">{{ nomeExibicao(d.nome) }}</option>
           </select>
         </CampoForm>
-        <button class="btn btn-primario" :disabled="salvando">{{ salvando ? 'Enviando…' : 'Cadastrar e enviar convite' }}</button>
+        <button class="btn btn-primario" :disabled="salvando">{{ salvando ? 'Salvando…' : 'Cadastrar e gerar convite' }}</button>
       </form>
     </section>
 
@@ -157,8 +178,8 @@ const ativos = computed(() => (usuarios.value ?? []).filter(u => u.ativo).length
               <td>
                 <span class="flex flex-wrap justify-end gap-x-3 gap-y-1">
                   <button type="button" class="text-[0.78rem] font-semibold text-primary-700 hover:underline" @click="editar(u)">Editar</button>
-                  <button v-if="u.ativo && u.email" type="button" class="text-[0.78rem] font-semibold text-primary-700 hover:underline" @click="enviarAcesso(u)">
-                    {{ u.convite_pendente ? 'Reenviar convite' : 'Enviar link de nova senha' }}
+                  <button v-if="u.ativo && u.email" type="button" class="text-[0.78rem] font-semibold text-primary-700 hover:underline" @click="gerarAcesso(u)">
+                    {{ u.convite_pendente ? 'Gerar link de convite' : 'Gerar link de nova senha' }}
                   </button>
                   <button
                     v-if="u.id !== perfil?.id"
