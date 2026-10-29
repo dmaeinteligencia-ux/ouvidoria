@@ -37,6 +37,7 @@ interface Evento { id: number, titulo: string, detalhe: string, texto?: string, 
 const eventos = computed<Evento[]>(() => {
   const l = props.listas
   const lista: Evento[] = []
+  const envios = new Map<string, { evento: Evento, detalheSemAvaliador: string, prefixo: string, destinos: Map<string, string[]> }>()
   const doCiclo = props.historico.filter(h => (props.inicio === undefined || h.id >= props.inicio) && (props.fim === undefined || h.id < props.fim))
   for (const h of doCiclo) {
     const novo = (h.dados_novos ?? {}) as Record<string, any>
@@ -72,15 +73,26 @@ const eventos = computed<Evento[]>(() => {
       }
     }
     else if (h.tabela === 'encaminhamentos' && h.acao === 'insert') {
-      const anteriores = lista.some(e => e.titulo.startsWith('Encaminhada') || e.titulo.startsWith('Reencaminhada'))
+      // Os avaliadores de um mesmo envio são gravados juntos (mesmo momento) e viram um só evento.
       const diretoria = nomeExibicao(nomePorId(l?.diretorias, novo.diretoria_id)) || 'diretoria'
-      const avaliador = nomeExibicao(nomePorId(l?.avaliadores, novo.avaliador_id))
-      lista.push({
+      const avaliador = nomeExibicao(nomePorId(l?.avaliadores, novo.avaliador_id)) || 'avaliador'
+      const envio = envios.get(h.em)
+      if (envio) {
+        envio.destinos.set(diretoria, [...(envio.destinos.get(diretoria) ?? []), avaliador])
+        envio.evento.titulo = `${envio.prefixo} ${[...envio.destinos.keys()].map(d => `à ${d}`).join(' e ')}`
+        envio.evento.detalhe = envio.detalheSemAvaliador
+        envio.evento.texto = [...envio.destinos].map(([d, av]) => `${d}: ${av.join(', ')}`).join('\n')
+        continue
+      }
+      const anteriores = lista.some(e => e.titulo.startsWith('Encaminhada') || e.titulo.startsWith('Reencaminhada'))
+      const evento: Evento = {
         id: h.id,
         titulo: `${anteriores ? 'Reencaminhada' : 'Encaminhada'} à ${diretoria}`,
-        detalhe: `envio em ${formatarData(novo.enviado_em)}${avaliador ? ` · avaliador ${avaliador}` : ''} · registrado ${quem}`,
+        detalhe: `envio em ${formatarData(novo.enviado_em)} · avaliador ${avaliador} · registrado ${quem}`,
         cor: 'border-primary-700 text-primary-700',
-      })
+      }
+      envios.set(h.em, { evento, detalheSemAvaliador: `envio em ${formatarData(novo.enviado_em)} · registrado ${quem}`, prefixo: anteriores ? 'Reencaminhada' : 'Encaminhada', destinos: new Map([[diretoria, [avaliador]]]) })
+      lista.push(evento)
     }
     else if (h.tabela === 'ciclos' && h.acao === 'insert' && novo.numero > 0) {
       lista.push({
@@ -104,6 +116,7 @@ const eventos = computed<Evento[]>(() => {
         id: h.id,
         titulo: `Complementação pedida ${novo.origem === 'diretoria' ? 'pela diretoria' : 'pela Ouvidoria'}`,
         detalhe: `pedido em ${formatarData(novo.pedido_em)} · prazo suspenso até a resposta do manifestante, limite ${formatarData(novo.limite)} · ${quem}`,
+        texto: novo.texto ?? undefined,
         cor: 'border-status-complementacao text-status-complementacao',
       })
     }

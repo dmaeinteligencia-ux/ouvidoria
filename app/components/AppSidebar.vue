@@ -38,6 +38,7 @@ const grupos = computed<{ titulo?: string, itens: Item[] }[]>(() => {
         { rotulo: 'Feriados', para: '/cadastros?aba=feriados' },
       ],
     },
+    ...(props.perfil === 'administrador' ? [{ titulo: 'Administração', itens: [{ rotulo: 'Usuários', para: '/usuarios' }] }] : []),
   ]
 })
 

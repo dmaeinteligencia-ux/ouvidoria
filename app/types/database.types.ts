@@ -105,6 +105,7 @@ export type Database = {
           limite: string | null
           origem: Database['public']['Enums']['origem_complementacao']
           pedido_em: string
+          texto: string | null
         }
         Insert: {
           arquivada_por_falta?: boolean
@@ -115,6 +116,7 @@ export type Database = {
           limite?: string | null
           origem: Database['public']['Enums']['origem_complementacao']
           pedido_em: string
+          texto?: string | null
         }
         Update: {
           arquivada_por_falta?: boolean
@@ -125,6 +127,7 @@ export type Database = {
           limite?: string | null
           origem?: Database['public']['Enums']['origem_complementacao']
           pedido_em?: string
+          texto?: string | null
         }
         Relationships: [Rel<'complementacoes_ciclo_id_fkey', 'ciclo_id', 'ciclos'>]
       }
@@ -388,7 +391,7 @@ export type Database = {
           arquivada: boolean | null
           assunto: string | null
           assunto_id: number | null
-          avaliador: string | null
+          avaliadores: string[] | null
           bairro: string | null
           cadastrado_em: string | null
           canal: string | null
@@ -396,8 +399,8 @@ export type Database = {
           ciclo: number | null
           dia_zero: string | null
           dias_restantes: number | null
-          diretoria: string | null
-          diretoria_id: number | null
+          diretorias: string[] | null
+          diretoria_ids: number[] | null
           id: number | null
           logradouro: string | null
           no_prazo: boolean | null
@@ -416,6 +419,10 @@ export type Database = {
       }
     }
     Functions: {
+      eh_administrador: {
+        Args: Record<string, never>
+        Returns: boolean
+      }
       painel_geral: {
         Args: {
           p_inicio: string, p_fim: string, p_agrupar?: string,
@@ -478,7 +485,11 @@ export type Database = {
         Returns: undefined
       }
       pedir_complementacao: {
-        Args: { p_manifestacao_id: number, p_origem: Database['public']['Enums']['origem_complementacao'], p_pedido_em: string }
+        Args: { p_manifestacao_id: number, p_origem: Database['public']['Enums']['origem_complementacao'], p_pedido_em: string, p_texto: string }
+        Returns: undefined
+      }
+      encaminhar: {
+        Args: { p_manifestacao_id: number, p_enviado_em: string, p_avaliadores: number[] }
         Returns: undefined
       }
       registrar_complementacao: {

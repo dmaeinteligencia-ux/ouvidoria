@@ -32,6 +32,7 @@ As migrações ficam em `supabase/migrations` e são aplicadas em ordem:
 | `..._indicadores.sql` | Painel Geral (`painel_geral`, público, só números agregados), Painel Gerencial (`painel_gerencial`: Ouvidoria vê tudo, diretor só a própria diretoria) e `extrato_mensal` nas 35 colunas da planilha |
 | `..._posicao_bairros.sql` | Latitude e longitude de cada bairro (marcadas pelo administrador em Cadastros › Bairros) para o mapa de bolhas do Painel Gerencial; o mapa usa o OpenStreetMap, sem chave |
 | `..._importacao_historico.sql` | Fase 5: área de carga `importacao_linhas` e `importacao_processar` (confere sem gravar ou importa) para as planilhas antigas; ver “Importação do histórico” |
+| `..._complementacao_avaliadores.sql` | Texto do pedido de complementação; encaminhamento a um ou mais avaliadores, inclusive de diretorias diferentes (`encaminhar`), com a manifestação contando uma vez em cada diretoria envolvida |
 
 Depois de uma migração, atualize `app/types/database.types.ts` (tipos gerados pelo Supabase).
 
@@ -45,6 +46,16 @@ DATABASE_URL=postgres://usuario@localhost/banco_de_teste npm run test:db
 ```
 
 O script apaga e recria o schema `public` do banco informado antes de cada arquivo de teste; use um banco descartável.
+
+### Usuários e convites
+
+O administrador gerencia os acessos em **Administração › Usuários**: cadastra (nome, e-mail, perfil e, para avaliador, a diretoria; no banco o perfil se chama `diretor`), edita, desativa e gera de novo o link de convite ou de nova senha. O sistema não envia e-mail: gera o link (`auth.admin.generateLink`) e o administrador o repassa por e-mail institucional, Teams ou WhatsApp. O link abre `/confirmar` com o código de uso único, que só é gasto quando a pessoa clica em **Continuar** (a prévia de link do WhatsApp e do Teams abre o endereço antes e gastaria um link do `/verify` do Supabase). Depois a pessoa escolhe a própria senha antes de usar o sistema. Quem é desativado não entra mais e perde o acesso aos dados; o histórico continua.
+
+Configuração necessária:
+
+- **Vercel › Settings › Environment Variables:** `NUXT_SUPABASE_SECRET_KEY` com a chave secreta do projeto (Supabase › Project Settings › API Keys › Secret keys). Ela fica só no servidor (rotas `server/api/usuarios`).
+- **Supabase › Authentication › URL Configuration:** Site URL com o endereço do sistema e, em Redirect URLs, `https://<endereço>/**`.
+- Opcional: **Supabase › Authentication › Providers › Email › Email OTP Expiration** até 86400 (24 horas) para o link durar mais que 1 hora.
 
 ### Primeiro administrador
 
