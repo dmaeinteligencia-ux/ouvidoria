@@ -171,6 +171,50 @@ export type Database = {
         Update: { data?: string, descricao?: string, tipo?: Database['public']['Enums']['tipo_feriado'] }
         Relationships: []
       }
+      importacao_equivalencias: {
+        Row: { tabela: string, valor: string, alvo_id: number, criado_em: string, criado_por: string | null }
+        Insert: { tabela: string, valor: string, alvo_id: number, criado_em?: string, criado_por?: string | null }
+        Update: { tabela?: string, valor?: string, alvo_id?: number, criado_em?: string, criado_por?: string | null }
+        Relationships: []
+      }
+      importacao_linhas: {
+        Row: {
+          id: number
+          lote: string
+          aba: string
+          linha: number
+          dados: Json
+          erros: string[]
+          avisos: string[]
+          manifestacao_id: number | null
+          conferida_em: string | null
+          importada_em: string | null
+        }
+        Insert: {
+          id?: never
+          lote: string
+          aba: string
+          linha: number
+          dados: Json
+          erros?: string[]
+          avisos?: string[]
+          manifestacao_id?: number | null
+          conferida_em?: string | null
+          importada_em?: string | null
+        }
+        Update: {
+          lote?: string
+          aba?: string
+          linha?: number
+          dados?: Json
+          erros?: string[]
+          avisos?: string[]
+          manifestacao_id?: number | null
+          conferida_em?: string | null
+          importada_em?: string | null
+        }
+        Relationships: []
+      }
       historico: {
         Row: {
           acao: string
@@ -419,6 +463,22 @@ export type Database = {
       }
     }
     Functions: {
+      importacao_conferir: {
+        Args: { p_ids: number[] }
+        Returns: { linhas: number, sem_erro: number, com_erro: number, importadas: number }[]
+      }
+      importacao_equivaler: {
+        Args: { p_tabela: string, p_valor: string, p_alvo_id?: number }
+        Returns: number
+      }
+      importacao_importar: {
+        Args: { p_ids: number[] }
+        Returns: { linhas: number, sem_erro: number, com_erro: number, importadas: number }[]
+      }
+      importacao_ordem_lote: {
+        Args: { p_lote: string }
+        Returns: number[]
+      }
       eh_administrador: {
         Args: Record<string, never>
         Returns: boolean

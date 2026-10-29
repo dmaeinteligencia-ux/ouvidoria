@@ -32,6 +32,7 @@ As migrações ficam em `supabase/migrations` e são aplicadas em ordem:
 | `..._indicadores.sql` | Painel Geral (`painel_geral`, público, só números agregados), Painel Gerencial (`painel_gerencial`: Ouvidoria vê tudo, diretor só a própria diretoria) e `extrato_mensal` nas 35 colunas da planilha |
 | `..._posicao_bairros.sql` | Latitude e longitude de cada bairro (marcadas pelo administrador em Cadastros › Bairros) para o mapa de bolhas do Painel Gerencial; o mapa usa o OpenStreetMap, sem chave |
 | `..._importacao_historico.sql` | Fase 5: área de carga `importacao_linhas` e `importacao_processar` (confere sem gravar ou importa) para as planilhas antigas; ver “Importação do histórico” |
+| `..._importacao_pela_tela.sql` | Importação pela tela do administrador: conferência e importação em blocos, equivalências de valores fora do cadastro e regras dos formatos antigos (2024 a 2026) |
 | `..._complementacao_avaliadores.sql` | Texto do pedido de complementação; encaminhamento a um ou mais avaliadores, inclusive de diretorias diferentes (`encaminhar`), com a manifestação contando uma vez em cada diretoria envolvida |
 
 Depois de uma migração, atualize `app/types/database.types.ts` (tipos gerados pelo Supabase).
@@ -68,10 +69,13 @@ select id, 'Nome do administrador', 'administrador' from auth.users where email 
 
 ## Importação do histórico
 
-As planilhas mensais (layout das 35 colunas, desde setembro de 2023) entram em duas etapas, feitas pela equipe técnica direto no banco; nada disso fica exposto na aplicação.
+As planilhas mensais antigas entram pela tela **Administração › Importar planilha** (só o administrador), sem passar pela equipe técnica:
 
-1. `python3 scripts/importar_planilha.py <lote> planilha1.xlsx planilha2.xlsx > carga.sql` lê todas as abas no layout e gera o SQL que grava uma linha por manifestação em `importacao_linhas`. Rode o `carga.sql` no banco.
-2. `select * from importacao_processar('<lote>');` confere o lote sem gravar nada. Os problemas de cada linha ficam em `importacao_linhas.erros` (impedem a importação) e `avisos` (bairro novo, avaliador antigo cadastrado como inativo, CEP ignorado).
-3. Corrigidas as linhas, `select * from importacao_processar('<lote>', true);` importa as que não têm erro. Rodar de novo só tenta as que ficaram de fora.
+1. O administrador escolhe os arquivos .xlsx (sem senha). O navegador lê todas as abas e acha as colunas pelo nome do cabeçalho, em qualquer um dos formatos usados desde 2024 (`app/utils/importacao.ts`). Nada sai do computador antes da confirmação.
+2. **Enviar e conferir** grava uma linha por manifestação em `importacao_linhas` e confere em blocos (`importacao_conferir`), desfazendo tudo: cada linha guarda os `erros` (impedem a importação) e `avisos` (bairro novo, avaliador antigo cadastrado como inativo, sem resolutividade).
+3. Valores fora do cadastro ("Esgoto", "PMU", "TAXA DE LIXO") aparecem agrupados; a equivalência escolhida (`importacao_equivaler`, tabela `importacao_equivalencias`) vale para todas as linhas e para os próximos envios. "Cadastrar como novo" cria o item inativo.
+4. **Importar** grava as linhas sem erro (`importacao_importar`). As com erro ficam no envio: corrigidas na planilha, basta enviar o arquivo de novo; as já importadas são reconhecidas pelo protocolo.
+
+Regras dos formatos antigos: "SOLUCIONADO" é Respondida; sem a coluna Identificação (até março de 2025) a manifestação entra como "NÃO INFORMADA"; sem resolutividade, fica fora do índice de resolutividade; a coluna ASSUNTO das planilhas até março de 2025 é a descrição (SINTOMA é o assunto); ENDEREÇO vai para o logradouro; o RESUMO vai para as observações; "ENCAMINHADO PARA LUCAS" vale o único avaliador da diretoria cujo nome começa por Lucas; DATA DA REABERTURA quer dizer reabertura aceita nesse dia, com ASSUNTO, DATA DA RESPOSTA e SEGUNDA RESPOSTA seguintes como pedido e resposta da reabertura.
 
 Regras da carga: a numeração interna segue a ordem de recebimento; a origem fica em `manifestacoes.importada_de`; “Aguardando complementação” é registrada à mão; a prorrogação vale quando a situação é Prorrogada ou a resposta saiu depois dos 5 dias úteis com o prazo prorrogado preenchido. Depois da carga, a rotina `atualizar_situacoes` marca como Vencida o que estiver em aberto fora do prazo.
