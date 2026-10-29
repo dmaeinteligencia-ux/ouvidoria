@@ -57,6 +57,7 @@ export function campoDaColuna(cabecalho: string, depoisDaReabertura: boolean): s
     return depoisDaReabertura ? 'reab_prazo' : 'prazo'
   }
   if (c.startsWith('DATA DA RESPOSTA')) return depoisDaReabertura ? 'reab_resposta_data' : 'resposta_data'
+  if (c === 'TEMPO') return depoisDaReabertura ? null : 'tempo'
   if (c === 'RESPOSTA') return 'resposta'
   if (c === 'RESOLUTIVIDADE') return 'resolutiva'
   if (c === 'ARQUIVAMENTO') return 'arquivamento'

@@ -194,3 +194,16 @@ begin
           where e.manifestacao_id = m.id) = 'NÃO INFORMADOfalse', 'avaliador não informado';
 end $$;
 reset role;
+
+-- Sem a data da resposta (janeiro e março de 2024): recebimento mais os dias úteis do TEMPO.
+call pg_temp.linha(17, '{"resposta_data": null, "tempo": "3"}');
+call pg_temp.linha(18, '{"resposta_data": null}');
+do $$
+declare r record;
+begin
+  select * into r from public.importacao_processar('teste', true);
+  assert (select ciclos.respondido_em from public.ciclos join public.manifestacoes m on m.id = ciclos.manifestacao_id
+          where m.protocolo_mgouv = '2023090000017') = '2023-09-08', 'resposta pelo TEMPO (seg 04/09 + 3 dias úteis, com o feriado de 07/09)';
+  assert (select avisos from public.importacao_linhas where linha = 17) @> array['Data da resposta calculada pelo TEMPO da planilha (3 dias úteis)'], 'aviso do TEMPO';
+  assert (select erros[1] from public.importacao_linhas where linha = 18) = 'Respondida sem a data da resposta', 'sem TEMPO continua com erro';
+end $$;
